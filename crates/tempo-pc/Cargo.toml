@@ -1,0 +1,24 @@
+[package]
+name = "tempo-pc"
+description = "Programa para Windows (Tauri) com a interface web do Tempo."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "tempo"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# `custom-protocol` liga o embutido da interface (`tauri://`) em release; sem ela o programa
+# tenta abrir `http://127.0.0.1:8080` (modo dev) e cai no diagnóstico do WebView2.
+tauri = { version = "2", features = ["tray-icon", "custom-protocol"] }
+tauri-plugin-notification = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }

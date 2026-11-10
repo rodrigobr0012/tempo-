@@ -3,3 +3,5 @@
 *.db-wal
 *.db-shm
 tempo-sessoes-*.csv
+/crates/tempo-web/dist
+/crates/tempo-pc/gen

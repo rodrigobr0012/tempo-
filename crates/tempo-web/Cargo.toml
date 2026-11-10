@@ -1,0 +1,24 @@
+[package]
+name = "tempo-web"
+description = "Versão web (Leptos + WebAssembly) do app de gestão de tempo."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+tempo-core.workspace = true
+tempo-store = { workspace = true, features = ["snapshot"] }
+# wasmbind: no navegador, "agora" e o fuso local vêm do Date do JavaScript.
+chrono = { workspace = true, features = ["wasmbind"] }
+leptos = { version = "0.8", features = ["csr"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["KeyboardEvent"] }
+console_error_panic_hook = "0.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# Funções de suporte do SQLite em WebAssembly (o rusqlite já usa este crate no wasm32).
+sqlite-wasm-rs = { version = "0.6", features = ["wasm-bindgen"] }

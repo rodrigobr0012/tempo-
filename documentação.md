@@ -1,6 +1,6 @@
 # Documentação — App de Gestão de Tempo por Disponibilidade
 
-> Versão 0.3 · 10/11/2026 · Status: implementado (ver seção 11) · 0.3: sono fixo substituído por blocos reservados criados pelo usuário
+> Versão 0.4 · 10/11/2026 · Status: implementado (ver seção 11) · 0.4: além do Android, também há versão web (Leptos/WebAssembly) e programa para Windows (Tauri)
 
 ---
 
@@ -24,9 +24,12 @@ O usuário cria **blocos reservados**, com nome e duração definidos por ele (e
 
 ### 1.2 Plataforma e tecnologia
 
-- **Plataforma:** somente Android.
+- **Plataformas:** Android (aplicativo nativo), web (Leptos + WebAssembly, estática) e Windows
+  (Tauri, embrulhando a mesma interface web numa janela nativa). As três compartilham o mesmo
+  núcleo em Rust (`tempo-core` + `tempo-store`); cada plataforma só muda a interface e a integração
+  com o sistema (notificações, armazenamento).
 - **Linguagem:** Rust (regra de negócio, persistência e interface).
-- **Fora de escopo:** iOS, desktop, web, sincronização em nuvem, contas de usuário.
+- **Fora de escopo:** iOS, macOS, Linux, sincronização em nuvem, contas de usuário.
 
 ---
 
@@ -189,11 +192,11 @@ Prioridade no padrão MoSCoW: **M** = obrigatório no MVP · **S** = importante 
 
 | ID | Requisito |
 |---|---|
-| RNF01 | O app é **exclusivamente Android**. Versão mínima: **Android 8.0 (API 26)**. Target: a API exigida pela Google Play na data da publicação (hoje 35+). |
+| RNF01 | O app roda em **Android**, **navegadores modernos** (web) e **Windows** (programa Tauri que embrulha a versão web). Versão mínima no Android: **8.0 (API 26)**. Target: a API exigida pela Google Play na data da publicação (hoje 35+). Windows: 10 ou superior (WebView2). |
 | RNF02 | Todo o domínio, persistência e interface devem ser escritos em **Rust estável**. |
-| RNF03 | A integração com APIs do Android (notificações, alarmes, permissões, boot) deve ser feita via **JNI** a partir do Rust. Se alguma API exigir uma classe Java/Kotlin declarada no manifesto (ex.: `BroadcastReceiver`), essa classe deve ser um **shim mínimo, sem regra de negócio**, que apenas repassa a chamada para o Rust. |
-| RNF04 | ABIs suportadas: `arm64-v8a` (obrigatória) e `x86_64` (emulador). `armeabi-v7a` (32 bits) fica de fora: o Skia usado pelo Slint não tem binário pronto para ele (ver seção 11). |
-| RNF05 | O código deve ser separado em: **`core`** (Rust puro, sem dependência de Android: cálculos, regras, estado do timer), **`storage`** (persistência) e **`app`** (UI + integração Android). O `core` deve compilar e rodar testes no desktop. |
+| RNF03 | A integração com APIs do Android (notificações, alarmes, permissões, boot) deve ser feita via **JNI** a partir do Rust. Se alguma API exigir uma classe Java/Kotlin declarada no manifesto (ex.: `BroadcastReceiver`), essa classe deve ser um **shim mínimo, sem regra de negócio**, que apenas repassa a chamada para o Rust. No programa para Windows, as integrações nativas (arquivo do banco, notificação, bandeja, início automático) ficam no `tempo-pc` em Rust, acessadas pela interface via comandos Tauri. |
+| RNF04 | ABIs suportadas: `arm64-v8a` (obrigatória) e `x86_64` (emulador/Windows). `armeabi-v7a` (32 bits) fica de fora: o Skia usado pelo Slint não tem binário pronto para ele (ver seção 11). A versão web é compilada para `wasm32-unknown-unknown`. |
+| RNF05 | O código deve ser separado em: **`core`** (Rust puro, sem dependência de plataforma: cálculos, regras, estado do timer), **`storage`** (persistência; a feature `snapshot` expõe cópia binária do banco para a web e o PC), **`app`** (interface Slint + integração Android), **`web`** (interface Leptos/WebAssembly) e **`pc`** (programa Tauri para Windows que reaproveita a `web`). O `core` deve compilar e rodar testes no desktop. |
 
 ### 5.2 Confiabilidade e precisão
 
@@ -349,7 +352,8 @@ Sessao
 
 | ID | Situação |
 |---|---|
-| RNF04 | Apenas `arm64-v8a` e `x86_64`. |
+| RNF01 | Implementado para Android, web (Leptos/WebAssembly em `crates/tempo-web`) e Windows (programa Tauri em `crates/tempo-pc` que embrulha a versão web numa janela nativa, com bandeja, notificação do sistema e início automático). |
+| RNF04 | Apenas `arm64-v8a` e `x86_64` no Android; `wasm32-unknown-unknown` na web; `x86_64-pc-windows-msvc` no programa para Windows. |
 | RNF08 | Atendido quando o usuário concede "Alarmes e lembretes" (Ajustes → Permissões). Sem essa permissão, o app usa alarme inexato, que pode atrasar alguns minutos em repouso. `USE_EXACT_ALARM` não é usado porque a Play Store o restringe a apps de despertador/calendário. |
 | RNF14 | APK `arm64-v8a` ≈ 17 MB, `x86_64` ≈ 18 MB (gerados separadamente; há também um universal ≈ 35 MB). |
 | RNF18 | Textos em pt-BR direto no código (`ui/*.slint` e `present.rs`). A extração para arquivos de tradução (`@tr()` do Slint) fica para quando houver um segundo idioma. |

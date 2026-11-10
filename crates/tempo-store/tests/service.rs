@@ -532,3 +532,22 @@ fn converte_sono_da_versao_anterior() {
         let _ = std::fs::remove_file(format!("{}{ext}", path.display()));
     }
 }
+
+#[cfg(feature = "snapshot")]
+#[test]
+fn snapshot_ida_e_volta_mantem_timer_e_tags() {
+    let (mut app, clock) = setup(&[tag("Estudo", 100)]);
+    let id = id_of(&app, "Estudo");
+    app.start(id).unwrap();
+    clock.advance(10 * M);
+    let bytes = app.snapshot().unwrap();
+    drop(app);
+
+    let mut back = Tempo::from_snapshot(&bytes, clock.clone()).unwrap();
+    assert!(back.settings().unwrap().onboarded);
+    assert_eq!(back.active_timer().unwrap().map(|a| a.tag_id), Some(id));
+    assert_eq!(consumed(&mut back, id), 10 * M);
+
+    let fresh = Tempo::from_snapshot(&[], clock).unwrap();
+    assert!(!fresh.settings().unwrap().onboarded);
+}

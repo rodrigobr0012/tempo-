@@ -1,0 +1,17 @@
+# Empacotamento da versão web (https://trunkrs.dev). Use scripts/build-web.ps1 ou scripts/dev-web.ps1,
+# que configuram o compilador C (clang) necessário para o SQLite em WebAssembly.
+[build]
+target = "index.html"
+dist = "dist"
+# Caminhos relativos: o site funciona em qualquer subpasta (ex.: GitHub Pages).
+public_url = "./"
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 8080
+open = false
+
+[tools]
+# Usa o wasm-opt instalado no sistema (scoop install binaryen) quando a versão bate,
+# em vez de baixar o binaryen a cada máquina.
+wasm_opt = "version_133"

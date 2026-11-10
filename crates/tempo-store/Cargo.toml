@@ -12,5 +12,9 @@ chrono.workspace = true
 thiserror.workspace = true
 rusqlite = { version = "0.41", features = ["bundled"] }
 
+[features]
+# Cópia do banco em memória para bytes e de volta (versão web: persistência no IndexedDB).
+snapshot = ["rusqlite/serialize"]
+
 [dev-dependencies]
 rusqlite = { version = "0.41", features = ["bundled"] }

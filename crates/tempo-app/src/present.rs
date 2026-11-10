@@ -1,31 +1,12 @@
 //! Conversão dos dados do serviço em estruturas da interface, com textos em pt-BR.
 
-use chrono::{Datelike, NaiveDate};
 use slint::{Color, ModelRc, SharedString, VecModel};
-use tempo_core::format::{hm, hms, short};
+use tempo_core::format::{day_title, hm, hms, short, short_date, tag_status};
 use tempo_core::stats::TagStats;
 use tempo_core::{Clock, Permille, Progress};
 use tempo_store::{DaySummary, SessionView, StatsView, TagToday, TodayView};
 
 use crate::{DayInfo, HeroItem, HistoryDay, HistoryTag, ReservedItem, Segment, SessionItem, StatItem, TagItem};
-
-const WEEKDAYS: [&str; 7] =
-    ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"];
-const WEEKDAYS_SHORT: [&str; 7] = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-const MONTHS: [&str; 12] = [
-    "janeiro",
-    "fevereiro",
-    "março",
-    "abril",
-    "maio",
-    "junho",
-    "julho",
-    "agosto",
-    "setembro",
-    "outubro",
-    "novembro",
-    "dezembro",
-];
 
 pub fn color(c: u32) -> Color {
     Color::from_rgb_u8((c >> 16) as u8, (c >> 8) as u8, c as u8)
@@ -39,38 +20,9 @@ pub fn model<T: Clone + 'static>(items: Vec<T>) -> ModelRc<T> {
     ModelRc::new(VecModel::from(items))
 }
 
-fn capitalize(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        Some(f) => f.to_uppercase().chain(c).collect(),
-        None => String::new(),
-    }
-}
-
-/// "Segunda-feira, 9 de novembro"
-pub fn day_title(d: NaiveDate) -> String {
-    let wd = WEEKDAYS[d.weekday().num_days_from_monday() as usize];
-    format!("{}, {} de {}", capitalize(wd), d.day(), MONTHS[d.month0() as usize])
-}
-
-/// "Seg, 09/11"
-pub fn short_date(d: NaiveDate) -> String {
-    format!("{}, {:02}/{:02}", WEEKDAYS_SHORT[d.weekday().num_days_from_monday() as usize], d.day(), d.month())
-}
-
 /// "HH:MM" local.
 pub fn local_clock(clock: &dyn Clock, ts: i64) -> String {
     clock.utc_to_local(ts).format("%H:%M").to_string()
-}
-
-pub fn tag_status(p: Progress) -> String {
-    if p.excess() > 0 {
-        format!("+{} de excedente", short(p.excess()))
-    } else if p.is_finished() {
-        "Concluído".into()
-    } else {
-        format!("Restam {}", short(p.remaining()))
-    }
 }
 
 pub fn tag_item(t: &TagToday) -> TagItem {
@@ -252,22 +204,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn datas_em_portugues() {
-        let d = NaiveDate::from_ymd_opt(2026, 11, 9).unwrap();
-        assert_eq!(day_title(d), "Segunda-feira, 9 de novembro");
-        assert_eq!(short_date(d), "Seg, 09/11");
-        assert_eq!(short_date(NaiveDate::from_ymd_opt(2026, 11, 14).unwrap()), "Sáb, 14/11");
-    }
-
-    #[test]
     fn cores_ida_e_volta() {
         assert_eq!(color_u32(color(0x3B82F6)), 0x3B82F6);
-    }
-
-    #[test]
-    fn status_da_tag() {
-        assert_eq!(tag_status(Progress::new(5760, 600)), "Restam 1h26min");
-        assert_eq!(tag_status(Progress::new(600, 600)), "Concluído");
-        assert_eq!(tag_status(Progress::new(600, 1320)), "+12min de excedente");
     }
 }

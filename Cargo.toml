@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/tempo-core", "crates/tempo-store", "crates/tempo-app"]
+members = ["crates/tempo-core", "crates/tempo-store", "crates/tempo-app", "crates/tempo-web", "crates/tempo-pc"]
 
 [workspace.package]
 version = "0.2.0"

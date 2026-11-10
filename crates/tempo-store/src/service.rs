@@ -72,6 +72,23 @@ impl Tempo {
         Self::init(Connection::open_in_memory()?, clock)
     }
 
+    /// Abre um banco em memória a partir de uma cópia feita por [`Tempo::snapshot`]
+    /// (bytes vazios = banco novo). Usado na versão web, que guarda a cópia no navegador.
+    #[cfg(feature = "snapshot")]
+    pub fn from_snapshot(bytes: &[u8], clock: Arc<dyn Clock>) -> Result<Self> {
+        let mut conn = Connection::open_in_memory()?;
+        if !bytes.is_empty() {
+            conn.deserialize_read_exact(rusqlite::MAIN_DB, bytes, bytes.len(), false)?;
+        }
+        Self::init(conn, clock)
+    }
+
+    /// Cópia completa do banco, para guardar fora do processo.
+    #[cfg(feature = "snapshot")]
+    pub fn snapshot(&mut self) -> Result<Vec<u8>> {
+        Ok(self.conn.serialize(rusqlite::MAIN_DB)?.to_vec())
+    }
+
     fn init(mut conn: Connection, clock: Arc<dyn Clock>) -> Result<Self> {
         conn.busy_timeout(Duration::from_secs(5))?;
         conn.pragma_update(None, "foreign_keys", true)?;
