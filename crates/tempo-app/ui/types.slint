@@ -33,7 +33,8 @@ export struct DayInfo {
     elapsed: string,
     day-left: string,
     allocated-percent: string,
-    unallocated: string,
+    unallocated-pct: string,
+    unallocated-time: string,
     overcommitted: bool,
     overcommit-text: string,
     clock-warning: bool,
@@ -93,4 +94,26 @@ export struct Suggestion {
     permille: int,
     percent: string,
     checked: bool,
+}
+
+// Célula da grade mensal do histórico (aba Período).
+export struct CalendarCell {
+    // Chave estável do dia para os callbacks: ano*10000 + mês*100 + dia.
+    key: int,
+    // Número do dia (1..31), ou o do mês anterior/seguinte quando `outside`.
+    day: int,
+    outside: bool,
+    future: bool,
+    today: bool,
+    selected: bool,
+}
+
+// Linha da legenda do gráfico de uso no período.
+export struct UsageTag {
+    name: string,
+    color: color,
+    pct: string,
+    duration: string,
+    // Se `true`, renderiza como "Não usado" (cinza, texto discreto).
+    muted: bool,
 }

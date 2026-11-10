@@ -2,7 +2,183 @@
 import { ScrollView } from "std-widgets.slint";
 import { Theme, Icons } from "theme.slint";
 import { Api } from "api.slint";
-import { Card, Bar, Muted, Title, Segmented } from "widgets.slint";
+import { CalendarCell } from "types.slint";
+import { Card, Bar, Muted, Title, Segmented, StackedBar, Btn, IconButton } from "widgets.slint";
+
+// Célula tocável da grade mensal. Toque alterna a seleção do dia (dias futuros ficam travados).
+component CalendarCellView inherits Rectangle {
+    in property <CalendarCell> cell;
+    background: cell.selected ? Theme.accent
+                : (cell.today && !cell.selected) ? Theme.accent-soft
+                : ta.pressed ? Theme.surface-2
+                : Theme.surface;
+    border-radius: 8px;
+    border-width: cell.today && !cell.selected ? 1px : 0;
+    border-color: Theme.accent;
+    opacity: cell.future ? 0.35 : (cell.outside ? 0.5 : 1);
+    accessible-role: button;
+    accessible-label: "Dia " + cell.day;
+    min-height: 40px;
+
+    ta := TouchArea {
+        enabled: !cell.future;
+        clicked => { Api.calendar-toggle(cell.key); }
+    }
+
+    Text {
+        text: cell.day;
+        color: cell.selected ? #FFFFFF : Theme.text;
+        font-size: 15px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component PeriodPanel inherits VerticalLayout {
+    spacing: 12px;
+
+    Card {
+        // Cabeçalho: ◀ mês ano ▶
+        HorizontalLayout {
+            spacing: 8px;
+            IconButton {
+                icon: Icons.up;
+                label: "Mês anterior";
+                clicked => { Api.calendar-shift(-1); }
+            }
+            Text {
+                text: Api.calendar-month-title;
+                color: Theme.text;
+                font-size: 16px;
+                font-weight: 700;
+                horizontal-stretch: 1;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            IconButton {
+                icon: Icons.down;
+                label: "Próximo mês";
+                clicked => { Api.calendar-shift(1); }
+            }
+        }
+
+        // Cabeçalho dos dias da semana (seg..dom).
+        HorizontalLayout {
+            spacing: 4px;
+            for dow in ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]: Rectangle {
+                horizontal-stretch: 1;
+                Text {
+                    text: dow;
+                    color: Theme.text-2;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        // 42 células = 6 semanas × 7 dias. Como o `for` do Slint só aceita um loop simples,
+        // uso uma grade virtual via HorizontalLayout com `wrap`? Não: Slint não tem wrap.
+        // Faço 6 linhas explícitas, cada uma com 7 células lidas por índice.
+        VerticalLayout {
+            spacing: 4px;
+            for row in [0, 1, 2, 3, 4, 5]: HorizontalLayout {
+                spacing: 4px;
+                for col in [0, 1, 2, 3, 4, 5, 6]: CalendarCellView {
+                    horizontal-stretch: 1;
+                    cell: Api.calendar-cells[row * 7 + col];
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 6px;
+            Muted {
+                text: Api.calendar-selection-caption;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+            Btn {
+                text: "Selecionar mês";
+                kind: 1;
+                clicked => { Api.calendar-select-month(); }
+            }
+            Btn {
+                text: "Limpar";
+                kind: 1;
+                clicked => { Api.calendar-clear(); }
+            }
+        }
+    }
+
+    if Api.period-has-data: Card {
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: Api.period-used-pct;
+                color: Theme.text;
+                font-size: 32px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                Text {
+                    text: "do tempo livre usado";
+                    color: Theme.text-2;
+                    font-size: 13px;
+                }
+                Muted {
+                    text: Api.period-available-caption;
+                }
+            }
+        }
+        StackedBar {
+            segments: Api.period-segments;
+            height: 16px;
+        }
+        VerticalLayout {
+            spacing: 6px;
+            for t in Api.period-usage-tags: HorizontalLayout {
+                spacing: 8px;
+                Rectangle {
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 5px;
+                    background: t.color;
+                    y: (parent.height - 10px) / 2;
+                }
+                Text {
+                    text: t.name;
+                    color: t.muted ? Theme.text-2 : Theme.text;
+                    font-size: 14px;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: t.pct;
+                    color: t.muted ? Theme.text-2 : Theme.text;
+                    font-size: 16px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: t.duration;
+                    color: Theme.text-2;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+    if !Api.period-has-data: Muted {
+        text: "Selecione dias com registros pra ver o gráfico do tempo livre.";
+        horizontal-alignment: center;
+    }
+}
 
 export component HistoryPage inherits Rectangle {
     background: Theme.bg;
@@ -18,13 +194,15 @@ export component HistoryPage inherits Rectangle {
             }
 
             Segmented {
-                options: ["Dias", "7 dias", "30 dias"];
+                options: ["Dias", "7 dias", "30 dias", "Período"];
                 selected: Api.history-tab;
                 changed(i) => {
                     Api.history-tab = i;
                     Api.load-history(i);
                 }
             }
+
+            if Api.history-tab == 3: PeriodPanel { }
 
             if Api.history-tab == 0 && Api.history.length == 0: Muted {
                 text: "Nada registrado ainda.";
@@ -98,7 +276,7 @@ export component HistoryPage inherits Rectangle {
                 }
             }
 
-            if Api.history-tab > 0: VerticalLayout {
+            if Api.history-tab > 0 && Api.history-tab < 3: VerticalLayout {
                 spacing: 12px;
                 Muted {
                     text: Api.stats-caption;
@@ -123,7 +301,7 @@ export component HistoryPage inherits Rectangle {
                         Text {
                             text: s.compliance;
                             color: Theme.text;
-                            font-size: 16px;
+                            font-size: 20px;
                             font-weight: 700;
                         }
                     }

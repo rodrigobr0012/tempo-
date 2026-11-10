@@ -1,10 +1,11 @@
 //! Liga os callbacks da interface ao serviço e mantém a tela atualizada.
 
 use std::cell::{Cell, RefCell};
+use std::collections::BTreeSet;
 use std::rc::Rc;
 use std::time::Duration;
 
-use chrono::Timelike;
+use chrono::{Datelike, Timelike, Duration as ChronoDuration, NaiveDate};
 
 use slint::{ComponentHandle, Model, SharedString, Timer, TimerMode};
 use tempo_core::format::{hm, short};
@@ -27,6 +28,10 @@ struct Cache {
     plan_total_others: RefCell<Vec<(i64, u16)>>,
     /// (id, segundos) dos blocos reservados, para a prévia do editor.
     reserved: RefCell<Vec<(i64, i64)>>,
+    /// Primeiro dia do mês visualizado na grade da aba Período.
+    calendar_month: RefCell<Option<NaiveDate>>,
+    /// Dias pintados pelo usuário no calendário (aba Período).
+    calendar_selected: RefCell<BTreeSet<NaiveDate>>,
 }
 
 struct Ctx {
@@ -212,25 +217,60 @@ impl Ctx {
     fn refresh_history(&self, tab: i32) {
         let Some(ui) = self.ui() else { return };
         let api = ui.global::<Api>();
-        if tab == 0 {
-            if let Some(days) = self.run(|t| {
-                t.tick()?;
-                t.history(60)
-            }) {
-                api.set_history(model(days.iter().map(present::history_day).collect()));
+        match tab {
+            0 => {
+                if let Some(days) = self.run(|t| {
+                    t.tick()?;
+                    t.history(60)
+                }) {
+                    api.set_history(model(days.iter().map(present::history_day).collect()));
+                }
             }
-        } else {
-            let period = if tab == 1 { 7 } else { 30 };
-            if let Some(stats) = self.run(|t| {
-                t.tick()?;
-                t.stats(period)
-            }) {
-                api.set_stats(model(
-                    stats.tags.iter().map(|s| present::stat_item(&s.name, s.color, s.archived, &s.stats)).collect(),
-                ));
-                api.set_stats_caption(present::stats_caption(&stats));
+            1 | 2 => {
+                let period = if tab == 1 { 7 } else { 30 };
+                if let Some(stats) = self.run(|t| {
+                    t.tick()?;
+                    t.stats(period)
+                }) {
+                    api.set_stats(model(
+                        stats.tags.iter().map(|s| present::stat_item(&s.name, s.color, s.archived, &s.stats)).collect(),
+                    ));
+                    api.set_stats_caption(present::stats_caption(&stats));
+                }
             }
+            3 => self.refresh_period(),
+            _ => {}
         }
+    }
+
+    /// Aba Período: monta a grade do mês atual e agrega o uso do tempo livre nos dias pintados.
+    fn refresh_period(&self) {
+        let Some(ui) = self.ui() else { return };
+        let today_local = {
+            let Some(clock) = self.run(|t| Ok(t.clock().clone())) else { return };
+            clock.utc_to_local(chrono::Utc::now().timestamp()).date()
+        };
+        let month_start = {
+            let mut cur = self.cache.calendar_month.borrow_mut();
+            *cur.get_or_insert_with(|| {
+                NaiveDate::from_ymd_opt(today_local.year(), today_local.month(), 1).unwrap_or(today_local)
+            })
+        };
+        let (from, to) = present::month_bounds(month_start);
+        let Some(days) = self.run(|t| t.history_range(from, to)) else { return };
+
+        let selected = self.cache.calendar_selected.borrow().clone();
+        let usage = present::aggregate_period(&days, &selected);
+
+        let api = ui.global::<Api>();
+        api.set_calendar_month_title(present::month_title(month_start).into());
+        api.set_calendar_cells(model(present::calendar_cells(month_start, today_local, &selected)));
+        api.set_calendar_selection_caption(present::calendar_selection_caption(selected.len()).into());
+        api.set_period_has_data(usage.available > 0);
+        api.set_period_available_caption(present::period_available_caption(&usage).into());
+        api.set_period_used_pct(present::period_used_pct_text(&usage).into());
+        api.set_period_segments(model(present::period_segments(&usage)));
+        api.set_period_usage_tags(model(present::period_usage_tags(&usage)));
     }
 
     /// Lista de blocos reservados e o resumo "Xh reservadas · Yh disponíveis" (RF01–RF03).
@@ -576,6 +616,67 @@ pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
     {
         let c = ctx.clone();
         api.on_load_history(move |tab| c.refresh_history(tab));
+    }
+    {
+        let c = ctx.clone();
+        api.on_calendar_shift(move |delta| {
+            let next = {
+                let mut cur = c.cache.calendar_month.borrow_mut();
+                let m = cur.unwrap_or_else(|| {
+                    let today = chrono::Local::now().date_naive();
+                    NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap_or(today)
+                });
+                let next = present::shift_months(m, delta);
+                *cur = Some(next);
+                next
+            };
+            let _ = next;
+            c.refresh_period();
+        });
+    }
+    {
+        let c = ctx.clone();
+        api.on_calendar_toggle(move |key| {
+            if let Some(date) = present::date_from_key(key) {
+                let today = chrono::Local::now().date_naive();
+                if date > today {
+                    return;
+                }
+                let mut sel = c.cache.calendar_selected.borrow_mut();
+                if !sel.remove(&date) {
+                    sel.insert(date);
+                }
+                drop(sel);
+                c.refresh_period();
+            }
+        });
+    }
+    {
+        let c = ctx.clone();
+        api.on_calendar_select_month(move || {
+            let month = c.cache.calendar_month.borrow().unwrap_or_else(|| {
+                let today = chrono::Local::now().date_naive();
+                NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap_or(today)
+            });
+            let today = chrono::Local::now().date_naive();
+            let (from, to) = present::month_bounds(month);
+            let to = to.min(today);
+            let mut sel = c.cache.calendar_selected.borrow_mut();
+            let mut d = from;
+            while d <= to {
+                sel.insert(d);
+                d += ChronoDuration::days(1);
+            }
+            drop(sel);
+            c.refresh_period();
+        });
+    }
+    {
+        let c = ctx.clone();
+        api.on_calendar_clear(move || {
+            c.cache.calendar_selected.borrow_mut().clear();
+            c.refresh_period();
+        });
     }
 
     // ---------------------------------------------------------------- ajustes

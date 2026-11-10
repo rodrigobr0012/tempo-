@@ -68,7 +68,7 @@ pub fn Onboarding() -> impl IntoView {
                                             <Icon path=icon::CHECK />
                                         </span>
                                         <span class="tag-name grow">{name}</span>
-                                        <span class="muted">{pct}</span>
+                                        <span class="pct">{pct}</span>
                                     </label>
                                 }
                             })

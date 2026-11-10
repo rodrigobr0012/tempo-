@@ -1,6 +1,6 @@
 // Ponte entre a interface e o Rust. Propriedades `in` são preenchidas pelo Rust;
 // callbacks são tratados em `src/ui.rs`.
-import { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryDay, StatItem, Suggestion, ReservedItem } from "types.slint";
+import { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryDay, StatItem, Suggestion, ReservedItem, CalendarCell, UsageTag } from "types.slint";
 
 export global Api {
     // ---- geral
@@ -60,6 +60,20 @@ export global Api {
     in property <[StatItem]> stats;
     in property <string> stats-caption;
     callback load-history(int);
+
+    // ---- Histórico — aba Período (calendário + uso do tempo livre)
+    in property <string> calendar-month-title;
+    in property <[CalendarCell]> calendar-cells;
+    in property <string> calendar-selection-caption;
+    in property <bool> period-has-data;
+    in property <string> period-available-caption;
+    in property <string> period-used-pct;
+    in property <[Segment]> period-segments;
+    in property <[UsageTag]> period-usage-tags;
+    callback calendar-shift(int);
+    callback calendar-toggle(int);
+    callback calendar-select-month();
+    callback calendar-clear();
 
     // ---- Ajustes
     in-out property <int> set-day-start;

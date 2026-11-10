@@ -163,9 +163,8 @@ pub fn TodayPage() -> impl IntoView {
                     <div class="tag-row unallocated">
                         <span class="stripe"></span>
                         <span class="grow">"Não alocado"</span>
-                        <span class="muted small">
-                            {day(|v| format!("{} · {}", v.unallocated_permille, short(v.unallocated_secs)))}
-                        </span>
+                        <span class="pct sm">{day(|v| v.unallocated_permille.to_string())}</span>
+                        <span class="muted small">{day(|v| short(v.unallocated_secs))}</span>
                     </div>
                 </Show>
 
@@ -280,7 +279,7 @@ fn TagRow(id: i64, today: Memo<Option<TodayView>>) -> impl IntoView {
             <span class="tag-body">
                 <span class="row">
                     <span class="tag-name grow ellipsis">{s(|t| t.tag.name.clone())}</span>
-                    <span class="muted small">{s(|t| t.permille.to_string())}</span>
+                    <span class="pct">{s(|t| t.permille.to_string())}</span>
                 </span>
                 <Bar
                     progress=progress

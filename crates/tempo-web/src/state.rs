@@ -4,9 +4,11 @@
 //! (`Tempo::snapshot`, alguns KB) é gravada no IndexedDB. Ao abrir, a cópia é carregada de volta.
 
 use std::cell::{Cell, RefCell};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::{Datelike, NaiveDate};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use tempo_core::SystemClock;
@@ -85,6 +87,7 @@ pub enum HistoryTab {
     Days,
     Week,
     Month,
+    Period,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,6 +125,10 @@ pub struct Ctx {
     pub now: RwSignal<i64>,
     pub page: RwSignal<Page>,
     pub history_tab: RwSignal<HistoryTab>,
+    /// Primeiro dia do mês mostrado na grade do calendário (aba "Período").
+    pub calendar_month: RwSignal<NaiveDate>,
+    /// Dias que o usuário pintou no calendário para o cálculo do período.
+    pub calendar_selected: RwSignal<BTreeSet<NaiveDate>>,
     pub dialog: RwSignal<Option<Dialog>>,
     pub toast: RwSignal<Option<(u64, String)>>,
     pub notif: RwSignal<Permission>,
@@ -133,11 +140,14 @@ pub fn ctx() -> Ctx {
 
 impl Ctx {
     pub fn new() -> Self {
+        let today = chrono::Local::now().date_naive();
         Self {
             rev: RwSignal::new(0),
             now: RwSignal::new(chrono::Utc::now().timestamp()),
             page: RwSignal::new(Page::Today),
             history_tab: RwSignal::new(HistoryTab::Days),
+            calendar_month: RwSignal::new(NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap_or(today)),
+            calendar_selected: RwSignal::new(BTreeSet::new()),
             dialog: RwSignal::new(None),
             toast: RwSignal::new(None),
             notif: RwSignal::new(browser::notification_permission()),

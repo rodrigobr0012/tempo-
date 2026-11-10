@@ -158,6 +158,21 @@ select {
   font-size: 22px;
   font-weight: 700;
 }
+.pct {
+  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  white-space: nowrap;
+}
+.pct.lg {
+  font-size: 26px;
+}
+.pct.sm {
+  font-size: 15px;
+  font-weight: 650;
+}
 .splash {
   min-height: 100vh;
   display: grid;
@@ -431,6 +446,114 @@ select {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* ---------------------------------------------------------------- calendário */
+
+.period-card {
+  gap: 10px;
+}
+.calendar-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.calendar-head .btn.text {
+  font-size: 18px;
+  padding: 4px 10px;
+}
+.calendar-dow,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.calendar-dow {
+  margin-bottom: 2px;
+  text-transform: capitalize;
+}
+.calendar-cell {
+  all: unset;
+  box-sizing: border-box;
+  display: grid;
+  place-content: center;
+  aspect-ratio: 1;
+  min-height: 34px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  transition: background 120ms, color 120ms, outline 120ms;
+}
+.calendar-cell:hover:not(.future) {
+  background: var(--surface-3, var(--surface-2));
+  outline: 1px solid var(--border);
+}
+.calendar-cell.outside {
+  color: var(--text-2);
+  opacity: 0.45;
+}
+.calendar-cell.future {
+  color: var(--text-2);
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.calendar-cell.today {
+  outline: 1px solid var(--accent);
+}
+.calendar-cell.selected {
+  background: var(--accent);
+  color: var(--accent-fg, #fff);
+  outline: none;
+}
+.calendar-cell.selected.outside {
+  opacity: 0.75;
+}
+.calendar-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- donut */
+
+.donut-row {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.donut {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  flex: none;
+}
+.donut svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.donut .donut-bg {
+  stroke: var(--surface-2);
+}
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 2px;
+}
+.donut-legend {
+  flex: 1 1 220px;
+  min-width: 220px;
+}
+.donut-item {
+  gap: 8px;
 }
 
 .stacked {

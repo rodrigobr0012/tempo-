@@ -687,6 +687,38 @@ impl Tempo {
             .collect()
     }
 
+    /// Histórico num intervalo de datas (inclusive), do mais recente para o mais antigo.
+    pub fn history_range(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<DaySummary>> {
+        let (from, to) = if from <= to { (from, to) } else { (to, from) };
+        let now = self.now();
+        let mut st = self.conn.prepare(
+            "SELECT id, date, available_secs, closed, no_record FROM days
+             WHERE date >= ?1 AND date <= ?2 ORDER BY date DESC",
+        )?;
+        let days = st
+            .query_map([date_to_db(from), date_to_db(to)], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i32>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, bool>(3)?,
+                    r.get::<_, bool>(4)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        days.into_iter()
+            .map(|(id, date, available, closed, no_record)| {
+                Ok(DaySummary {
+                    date: date_from_db(date),
+                    available,
+                    closed,
+                    no_record,
+                    tags: day_tag_summaries(&self.conn, id, now)?,
+                })
+            })
+            .collect()
+    }
+
     /// RF31: estatísticas dos últimos `period_days` dias completos (fechados).
     pub fn stats(&self, period_days: u32) -> Result<StatsView> {
         let Some(today) = open_day(&self.conn)? else { return Ok(StatsView::default()) };

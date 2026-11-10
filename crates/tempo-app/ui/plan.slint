@@ -53,8 +53,15 @@ component PlanRow inherits Rectangle {
                 overflow: elide;
             }
             Muted {
-                text: item.percent + " · " + item.allocated + " por dia";
+                text: item.allocated + " por dia";
             }
+        }
+        Text {
+            text: item.percent;
+            color: Theme.text;
+            font-size: 22px;
+            font-weight: 700;
+            vertical-alignment: center;
         }
         IconButton {
             icon: Icons.up;
@@ -112,12 +119,13 @@ export component PlanPage inherits Rectangle {
                     Text {
                         text: Api.plan-allocated;
                         color: Theme.text;
-                        font-size: 14px;
-                        font-weight: 600;
+                        font-size: 20px;
+                        font-weight: 700;
                         horizontal-stretch: 1;
                     }
                     Muted {
                         text: Api.plan-unallocated;
+                        vertical-alignment: center;
                     }
                 }
             }
@@ -178,11 +186,18 @@ export component PlanPage inherits Rectangle {
                         opacity: 0.6;
                     }
                     Text {
-                        text: t.name + " (" + t.percent + ")";
+                        text: t.name;
                         color: Theme.text-2;
                         font-size: 15px;
                         overflow: elide;
                         horizontal-stretch: 1;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: t.percent;
+                        color: Theme.text-2;
+                        font-size: 15px;
+                        font-weight: 700;
                         vertical-alignment: center;
                     }
                     IconButton {

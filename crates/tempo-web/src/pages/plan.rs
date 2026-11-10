@@ -69,16 +69,17 @@ pub fn PlanPage() -> impl IntoView {
                                 .collect_view()
                         })}
                     </div>
-                    <div class="row small">
-                        <span class="strong grow">{move || format!("Alocado {}", data.with(PlanData::total))}</span>
+                    <div class="row baseline small">
+                        <span class="grow">
+                            "Alocado "
+                            <span class="pct lg">{move || data.with(|d| d.total().to_string())}</span>
+                        </span>
                         <span class="muted">
+                            "Não alocado "
+                            <span class="pct sm">{move || data.with(|d| unallocated(d.total()).to_string())}</span>
+                            " · "
                             {move || data.with(|d| {
-                                let total = d.total();
-                                format!(
-                                    "Não alocado {} · {}",
-                                    unallocated(total),
-                                    short(d.available - allocated_secs(d.available, total))
-                                )
+                                short(d.available - allocated_secs(d.available, d.total()))
                             })}
                         </span>
                     </div>
@@ -112,9 +113,12 @@ pub fn PlanPage() -> impl IntoView {
                                     >
                                         <span class="dot big" style:background=css(t.color)></span>
                                         <span class="tag-body">
-                                            <span class="tag-name ellipsis">{t.name.clone()}</span>
+                                            <span class="row baseline">
+                                                <span class="tag-name grow ellipsis">{t.name.clone()}</span>
+                                                <span class="pct">{t.permille.to_string()}</span>
+                                            </span>
                                             <span class="muted small">
-                                                {format!("{} · {} por dia", t.permille, hm(allocated_secs(d.available, t.permille)))}
+                                                {format!("{} por dia", hm(allocated_secs(d.available, t.permille)))}
                                             </span>
                                         </span>
                                         <span class="muted"><Icon path=icon::EDIT /></span>
@@ -165,7 +169,8 @@ pub fn PlanPage() -> impl IntoView {
                             view! {
                                 <div class="tag-row archived">
                                     <span class="dot big faded" style:background=css(t.color)></span>
-                                    <span class="grow muted ellipsis">{format!("{} ({})", t.name, t.permille)}</span>
+                                    <span class="grow muted ellipsis">{t.name.clone()}</span>
+                                    <span class="pct sm muted">{t.permille.to_string()}</span>
                                     <IconButton
                                         path=icon::UNARCHIVE
                                         label=format!("Restaurar {name}")

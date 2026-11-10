@@ -126,8 +126,9 @@ component TagRow inherits Rectangle {
                 }
                 Text {
                     text: item.percent;
-                    color: Theme.text-2;
-                    font-size: 13px;
+                    color: Theme.text;
+                    font-size: 20px;
+                    font-weight: 700;
                     vertical-alignment: center;
                 }
             }
@@ -277,11 +278,20 @@ export component TodayPage inherits Rectangle {
                         color: Theme.text-2;
                         font-size: 15px;
                         horizontal-stretch: 1;
+                        vertical-alignment: center;
                     }
                     Text {
-                        text: Api.day.unallocated;
+                        text: Api.day.unallocated-pct;
+                        color: Theme.text;
+                        font-size: 16px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: Api.day.unallocated-time;
                         color: Theme.text-2;
                         font-size: 13px;
+                        vertical-alignment: center;
                     }
                 }
             }
