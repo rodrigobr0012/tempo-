@@ -7576,7 +7576,7 @@ dependencies = [
 
 [[package]]
 name = "tempo-app"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "android_logger",
  "chrono",
@@ -7591,7 +7591,7 @@ dependencies = [
 
 [[package]]
 name = "tempo-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "thiserror 2.0.21",
@@ -7599,7 +7599,7 @@ dependencies = [
 
 [[package]]
 name = "tempo-pc"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "tauri",
@@ -7611,7 +7611,7 @@ dependencies = [
 
 [[package]]
 name = "tempo-store"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "rusqlite",
@@ -7621,7 +7621,7 @@ dependencies = [
 
 [[package]]
 name = "tempo-web"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "console_error_panic_hook",
