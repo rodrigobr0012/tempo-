@@ -1,0 +1,111 @@
+// Ponte entre a interface e o Rust. Propriedades `in` são preenchidas pelo Rust;
+// callbacks são tratados em `src/ui.rs`.
+import { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryDay, StatItem, Suggestion } from "types.slint";
+
+export global Api {
+    // ---- geral
+    in-out property <int> page: 0;
+    in-out property <string> toast;
+    in property <bool> onboarded;
+    in property <bool> is-android;
+    in property <string> version;
+
+    // ---- Hoje
+    in property <DayInfo> day;
+    in property <[Segment]> segments;
+    in property <HeroItem> hero;
+    in property <[TagItem]> today-tags;
+    in property <[SessionItem]> sessions;
+    in property <[string]> tag-names;
+    in property <int> manual-default-start;
+    callback toggle-tag(int);
+    callback pause();
+    callback resume();
+    callback stop();
+    callback dismiss-clock-warning();
+    callback navigate(int);
+    callback open-sessions();
+    callback delete-session(int);
+    callback add-manual(int, int, int) -> bool;
+
+    // ---- Planejar
+    in property <[TagItem]> plan-tags;
+    in property <[TagItem]> archived-tags;
+    in property <string> plan-available;
+    in property <string> plan-sleep;
+    in property <string> plan-allocated;
+    in property <string> plan-unallocated;
+    in property <bool> can-add-tag;
+    callback move-tag(int, int);
+    callback archive-tag(int);
+    callback restore-tag(int);
+    callback save-tag(int, string, color, int) -> bool;
+    pure callback max-permille-for(int) -> int;
+    pure callback permille-text(int) -> string;
+    pure callback permille-duration(int) -> string;
+    pure callback minutes-to-permille(int) -> int;
+    pure callback permille-minutes(int) -> int;
+    pure callback minutes-text(int) -> string;
+
+    // ---- Histórico
+    in-out property <int> history-tab: 0;
+    in property <[HistoryDay]> history;
+    in property <[StatItem]> stats;
+    in property <string> stats-caption;
+    callback load-history(int);
+
+    // ---- Ajustes
+    in-out property <int> set-bed;
+    in-out property <int> set-wake;
+    in property <bool> overtime;
+    in property <bool> sound;
+    in property <bool> vibration;
+    in property <int> retention-index;
+    in property <bool> notif-granted;
+    in property <bool> exact-granted;
+    callback save-schedule(int, int);
+    callback set-overtime(bool);
+    callback set-sound(bool);
+    callback set-vibration(bool);
+    callback set-retention(int);
+    callback request-notifications();
+    callback request-exact-alarms();
+    callback export-csv();
+
+    // ---- Formatação e validação (puras)
+    pure callback clock-text(int) -> string;
+    pure callback sleep-summary(int, int) -> string;
+    pure callback sleep-warning(int, int) -> string;
+    pure callback sleep-valid(int, int) -> bool;
+    pure callback wrap-minutes(int) -> int;
+
+    // ---- Primeira execução
+    in-out property <[Suggestion]> suggestions;
+    callback finish-onboarding(int, int);
+
+    // ---- Confirmações
+    callback confirm-accepted(string);
+}
+
+// Estado dos diálogos (sobrepostos à janela inteira).
+export global Dlg {
+    // 0 nenhum · 1 editor de tag · 2 lançamento manual · 3 sessões de hoje · 4 confirmação
+    in-out property <int> kind: 0;
+
+    in-out property <int> editor-id: -1;
+    in-out property <string> editor-name;
+    in-out property <color> editor-color;
+    in-out property <int> editor-permille;
+    in-out property <int> editor-max;
+    in-out property <bool> editor-by-duration;
+    in-out property <int> editor-minutes;
+
+    in-out property <int> manual-tag;
+    in-out property <int> manual-start;
+    in-out property <int> manual-minutes: 30;
+
+    in-out property <string> confirm-title;
+    in-out property <string> confirm-text;
+    in-out property <string> confirm-button;
+    in-out property <string> confirm-action;
+}

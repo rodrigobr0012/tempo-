@@ -1,0 +1,167 @@
+// Primeira execução (RF04, RF14): sono → tags sugeridas → começar.
+import { Theme, Icons } from "theme.slint";
+import { Api } from "api.slint";
+import { Icon, Btn, Card, Muted, Title, Stepper } from "widgets.slint";
+
+export component Onboarding inherits Rectangle {
+    in property <length> bottom-inset;
+    property <int> step: 0;
+    property <int> bed: 23 * 60;
+    property <int> wake: 7 * 60;
+    property <string> warning: Api.sleep-warning(root.bed, root.wake);
+
+    background: Theme.bg;
+
+    Flickable {
+        VerticalLayout {
+            padding: 20px;
+            padding-top: 24px;
+            padding-bottom: root.bottom-inset + 24px;
+            spacing: 16px;
+            alignment: start;
+
+            Text {
+                text: "Passo " + (root.step + 1) + " de 2";
+                color: Theme.accent;
+                font-size: 13px;
+                font-weight: 700;
+            }
+
+            if root.step == 0: VerticalLayout {
+                spacing: 16px;
+                Title {
+                    text: "Quanto tempo você tem?";
+                    wrap: word-wrap;
+                }
+                Muted {
+                    text: "O dia não tem 24 horas úteis. Descontado o sono, sobra o seu tempo disponível — e é ele que você vai dividir em porcentagens.";
+                    font-size: 15px;
+                }
+                Card {
+                    Muted {
+                        text: "Vou dormir às";
+                    }
+                    Stepper {
+                        display: Api.clock-text(root.bed);
+                        small: 15;
+                        small-label: "15";
+                        step(d) => {
+                            root.bed = Api.wrap-minutes(root.bed + d);
+                        }
+                    }
+                    Muted {
+                        text: "Acordo às";
+                    }
+                    Stepper {
+                        display: Api.clock-text(root.wake);
+                        small: 15;
+                        small-label: "15";
+                        step(d) => {
+                            root.wake = Api.wrap-minutes(root.wake + d);
+                        }
+                    }
+                }
+                Text {
+                    text: Api.sleep-summary(root.bed, root.wake);
+                    color: Theme.text;
+                    font-size: 18px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                if root.warning != "": Text {
+                    text: root.warning;
+                    color: Api.sleep-valid(root.bed, root.wake) ? Theme.warn-text : Theme.danger;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                Btn {
+                    text: "Continuar";
+                    enabled: Api.sleep-valid(root.bed, root.wake);
+                    clicked => {
+                        root.step = 1;
+                    }
+                }
+            }
+
+            if root.step == 1: VerticalLayout {
+                spacing: 16px;
+                Title {
+                    text: "Como quer dividir?";
+                    wrap: word-wrap;
+                }
+                Muted {
+                    text: "Escolha algumas tags para começar. Você ajusta nomes e porcentagens depois, na aba Planejar.";
+                    font-size: 15px;
+                }
+                for s[i] in Api.suggestions: Rectangle {
+                    background: Theme.surface;
+                    border-radius: Theme.radius;
+                    border-width: s.checked ? 2px : 1px;
+                    border-color: s.checked ? s.color : Theme.line;
+                    accessible-role: checkbox;
+                    accessible-label: s.name + ", " + s.percent;
+                    accessible-checked: s.checked;
+                    HorizontalLayout {
+                        padding: 14px;
+                        spacing: 12px;
+                        Rectangle {
+                            width: 24px;
+                            height: 24px;
+                            border-radius: 6px;
+                            background: s.checked ? s.color : transparent;
+                            border-width: 2px;
+                            border-color: s.checked ? s.color : Theme.text-2;
+                            if s.checked: Icon {
+                                x: 0;
+                                y: 0;
+                                commands: Icons.check;
+                                tint: #FFFFFF;
+                            }
+                        }
+                        Text {
+                            text: s.name;
+                            color: Theme.text;
+                            font-size: 16px;
+                            font-weight: 600;
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: s.percent;
+                            color: Theme.text-2;
+                            font-size: 14px;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TouchArea {
+                        clicked => {
+                            Api.suggestions[i].checked = !s.checked;
+                        }
+                    }
+                }
+                Muted {
+                    text: "Para avisar quando o tempo de uma tag acabar, o app vai pedir permissão para enviar notificações.";
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    Btn {
+                        text: "Voltar";
+                        kind: 1;
+                        clicked => {
+                            root.step = 0;
+                        }
+                    }
+                    Btn {
+                        text: "Começar";
+                        horizontal-stretch: 1;
+                        clicked => {
+                            Api.finish-onboarding(root.bed, root.wake);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

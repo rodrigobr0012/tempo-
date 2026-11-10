@@ -1,0 +1,89 @@
+// Estruturas trocadas entre o Rust e a interface. Todos os textos já chegam formatados.
+
+export struct TagItem {
+    id: int,
+    name: string,
+    color: color,
+    permille: int,
+    percent: string,
+    allocated: string,
+    consumed: string,
+    status: string,
+    progress: float,
+    running: bool,
+    finished: bool,
+    excess: bool,
+}
+
+export struct HeroItem {
+    visible: bool,
+    running: bool,
+    tag-id: int,
+    name: string,
+    color: color,
+    big-time: string,
+    caption: string,
+    progress: float,
+    excess: bool,
+}
+
+export struct DayInfo {
+    title: string,
+    available: string,
+    elapsed: string,
+    until-sleep: string,
+    allocated-percent: string,
+    unallocated: string,
+    overcommitted: bool,
+    overcommit-text: string,
+    clock-warning: bool,
+}
+
+export struct Segment {
+    color: color,
+    offset: float,
+    fraction: float,
+}
+
+export struct SessionItem {
+    id: int,
+    name: string,
+    color: color,
+    range: string,
+    duration: string,
+    manual: bool,
+    running: bool,
+}
+
+export struct HistoryTag {
+    name: string,
+    color: color,
+    text: string,
+    progress: float,
+    excess: bool,
+}
+
+export struct HistoryDay {
+    title: string,
+    subtitle: string,
+    today: bool,
+    no-record: bool,
+    tags: [HistoryTag],
+}
+
+export struct StatItem {
+    name: string,
+    color: color,
+    compliance: string,
+    progress: float,
+    detail: string,
+    archived: bool,
+}
+
+export struct Suggestion {
+    name: string,
+    color: color,
+    permille: int,
+    percent: string,
+    checked: bool,
+}

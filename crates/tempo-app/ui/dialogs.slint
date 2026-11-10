@@ -1,0 +1,294 @@
+// Diálogos: editor de tag (RF06–RF08), lançamento manual (RF23), sessões de hoje (RF24) e confirmação.
+import { LineEdit, ComboBox, Slider } from "std-widgets.slint";
+import { Theme, Icons } from "theme.slint";
+import { Api, Dlg } from "api.slint";
+import { Icon, IconButton, Btn, Muted, Stepper, Segmented, Sheet } from "widgets.slint";
+
+component ColorDot inherits Rectangle {
+    in property <color> value;
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
+    background: root.value;
+    accessible-role: button;
+    accessible-label: "Cor";
+    accessible-checked: Dlg.editor-color == root.value;
+    if Dlg.editor-color == root.value: Icon {
+        x: 8px;
+        y: 8px;
+        commands: Icons.check;
+        tint: #FFFFFF;
+    }
+    TouchArea {
+        clicked => {
+            Dlg.editor-color = root.value;
+        }
+    }
+}
+
+export component TagEditorDialog inherits Sheet {
+    property <int> effective: Dlg.editor-by-duration ? Api.minutes-to-permille(Dlg.editor-minutes) : Dlg.editor-permille;
+    property <bool> valid: Dlg.editor-name != "" && root.effective >= 1 && root.effective <= Dlg.editor-max;
+
+    title: Dlg.editor-id < 0 ? "Nova tag" : "Editar tag";
+    dismiss => {
+        Dlg.kind = 0;
+    }
+
+    LineEdit {
+        text <=> Dlg.editor-name;
+        placeholder-text: "Nome (ex.: Estudo)";
+        input-type: text;
+    }
+
+    VerticalLayout {
+        spacing: 8px;
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: center;
+            ColorDot { value: #3B82F6; }
+            ColorDot { value: #10B981; }
+            ColorDot { value: #F59E0B; }
+            ColorDot { value: #EF4444; }
+            ColorDot { value: #8B5CF6; }
+            ColorDot { value: #EC4899; }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: center;
+            ColorDot { value: #14B8A6; }
+            ColorDot { value: #F97316; }
+            ColorDot { value: #6366F1; }
+            ColorDot { value: #84CC16; }
+            ColorDot { value: #06B6D4; }
+            ColorDot { value: #A16207; }
+        }
+    }
+
+    Segmented {
+        options: ["Porcentagem", "Duração"];
+        selected: Dlg.editor-by-duration ? 1 : 0;
+        changed(i) => {
+            if (i == 1 && !Dlg.editor-by-duration) {
+                // Converte a porcentagem atual em minutos para começar do mesmo ponto.
+                Dlg.editor-minutes = max(5, Api.permille-minutes(Dlg.editor-permille));
+            }
+            Dlg.editor-by-duration = i == 1;
+        }
+    }
+
+    if !Dlg.editor-by-duration: VerticalLayout {
+        spacing: 10px;
+        Text {
+            text: Api.permille-text(Dlg.editor-permille) + " = " + Api.permille-duration(Dlg.editor-permille);
+            color: Theme.text;
+            font-size: 22px;
+            font-weight: 700;
+            horizontal-alignment: center;
+        }
+        Slider {
+            minimum: 1;
+            maximum: max(1, Dlg.editor-max);
+            value: Dlg.editor-permille;
+            changed(v) => {
+                Dlg.editor-permille = clamp(Math.round(v / 5) * 5, 1, Dlg.editor-max);
+            }
+        }
+        Stepper {
+            display: Api.permille-text(Dlg.editor-permille);
+            small: 1;
+            small-label: "0,1";
+            big: 10;
+            big-label: "1";
+            step(d) => {
+                Dlg.editor-permille = clamp(Dlg.editor-permille + d, 1, max(1, Dlg.editor-max));
+            }
+        }
+    }
+
+    if Dlg.editor-by-duration: VerticalLayout {
+        spacing: 10px;
+        Stepper {
+            display: Api.minutes-text(Dlg.editor-minutes);
+            step(d) => {
+                Dlg.editor-minutes = max(1, Dlg.editor-minutes + d);
+            }
+        }
+        Text {
+            text: "= " + Api.permille-text(root.effective) + " do tempo disponível";
+            color: Theme.text;
+            font-size: 16px;
+            font-weight: 600;
+            horizontal-alignment: center;
+        }
+    }
+
+    Muted {
+        text: Dlg.editor-max >= 1 ? "Disponível para esta tag: até " + Api.permille-text(Dlg.editor-max) + " (" + Api.permille-duration(Dlg.editor-max) + ")." : "Não há porcentagem livre. Reduza outra tag primeiro.";
+        color: root.effective > Dlg.editor-max ? Theme.danger : Theme.text-2;
+        horizontal-alignment: center;
+    }
+
+    Btn {
+        text: "Salvar";
+        enabled: root.valid;
+        clicked => {
+            if (Api.save-tag(Dlg.editor-id, Dlg.editor-name, Dlg.editor-color, root.effective)) {
+                Dlg.kind = 0;
+            }
+        }
+    }
+
+    if Dlg.editor-id >= 0: HorizontalLayout {
+        spacing: 12px;
+        Btn {
+            text: "Arquivar";
+            icon: Icons.archive;
+            kind: 1;
+            horizontal-stretch: 1;
+            clicked => {
+                Api.archive-tag(Dlg.editor-id);
+                Dlg.kind = 0;
+            }
+        }
+        Btn {
+            text: "Excluir";
+            icon: Icons.delete;
+            kind: 3;
+            horizontal-stretch: 1;
+            clicked => {
+                Dlg.confirm-title = "Excluir \"" + Dlg.editor-name + "\"?";
+                Dlg.confirm-text = "A tag e todo o histórico dela serão apagados. Para manter o histórico, use Arquivar.";
+                Dlg.confirm-button = "Excluir";
+                Dlg.confirm-action = "delete-tag:" + Dlg.editor-id;
+                Dlg.kind = 4;
+            }
+        }
+    }
+}
+
+export component ManualDialog inherits Sheet {
+    title: "Lançar tempo";
+    dismiss => {
+        Dlg.kind = 0;
+    }
+
+    Muted {
+        text: "Esqueceu de ligar o timer? Registre o tempo aqui.";
+    }
+    Muted {
+        text: "Tag";
+    }
+    ComboBox {
+        model: Api.tag-names;
+        current-index <=> Dlg.manual-tag;
+    }
+    Muted {
+        text: "Início";
+    }
+    Stepper {
+        display: Api.clock-text(Dlg.manual-start);
+        step(d) => {
+            Dlg.manual-start = Api.wrap-minutes(Dlg.manual-start + d);
+        }
+    }
+    Muted {
+        text: "Duração";
+    }
+    Stepper {
+        display: Api.minutes-text(Dlg.manual-minutes);
+        step(d) => {
+            Dlg.manual-minutes = max(1, Dlg.manual-minutes + d);
+        }
+    }
+    Btn {
+        text: "Lançar";
+        clicked => {
+            if (Api.add-manual(Dlg.manual-tag, Dlg.manual-start, Dlg.manual-minutes)) {
+                Dlg.kind = 0;
+            }
+        }
+    }
+}
+
+export component SessionsDialog inherits Sheet {
+    title: "Sessões de hoje";
+    dismiss => {
+        Dlg.kind = 0;
+    }
+
+    if Api.sessions.length == 0: Muted {
+        text: "Nenhuma sessão registrada hoje.";
+    }
+    for s in Api.sessions: HorizontalLayout {
+        spacing: 10px;
+        Rectangle {
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background: s.color;
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            Text {
+                text: s.name + (s.manual ? " · manual" : "");
+                color: Theme.text;
+                font-size: 15px;
+                overflow: elide;
+            }
+            Muted {
+                text: s.range + " · " + s.duration;
+            }
+        }
+        if !s.running: IconButton {
+            icon: Icons.delete;
+            label: "Apagar sessão de " + s.name + ", " + s.range;
+            tint: Theme.danger;
+            clicked => {
+                Api.delete-session(s.id);
+            }
+        }
+        if s.running: Text {
+            text: "agora";
+            color: Theme.success;
+            font-size: 13px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component ConfirmDialog inherits Sheet {
+    title: Dlg.confirm-title;
+    dismiss => {
+        Dlg.kind = 0;
+    }
+
+    Text {
+        text: Dlg.confirm-text;
+        color: Theme.text-2;
+        font-size: 15px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 12px;
+        Btn {
+            text: "Cancelar";
+            kind: 1;
+            horizontal-stretch: 1;
+            clicked => {
+                Dlg.kind = 0;
+            }
+        }
+        Btn {
+            text: Dlg.confirm-button;
+            kind: 3;
+            horizontal-stretch: 1;
+            clicked => {
+                Dlg.kind = 0;
+                Api.confirm-accepted(Dlg.confirm-action);
+            }
+        }
+    }
+}

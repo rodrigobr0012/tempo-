@@ -1,0 +1,231 @@
+// Janela principal: navegação inferior, páginas, diálogos e avisos.
+import { Theme, Icons } from "theme.slint";
+import { Api, Dlg } from "api.slint";
+import { Icon } from "widgets.slint";
+import { TodayPage } from "today.slint";
+import { PlanPage } from "plan.slint";
+import { HistoryPage } from "history.slint";
+import { SettingsPage } from "settings.slint";
+import { Onboarding } from "onboarding.slint";
+import { TagEditorDialog, ManualDialog, SessionsDialog, ConfirmDialog } from "dialogs.slint";
+
+export { Api, Dlg }
+export { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryTag, HistoryDay, StatItem, Suggestion } from "types.slint";
+
+component NavItem inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <int> index;
+    property <bool> active: Api.page == root.index;
+    accessible-role: tab;
+    accessible-label: root.label;
+    accessible-checked: root.active;
+
+    VerticalLayout {
+        padding-top: 10px;
+        padding-bottom: 10px;
+        spacing: 4px;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 60px;
+                height: 32px;
+                border-radius: 16px;
+                background: root.active ? Theme.accent-soft : transparent;
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    commands: root.icon;
+                    tint: root.active ? Theme.accent : Theme.text-2;
+                }
+            }
+        }
+        Text {
+            text: root.label;
+            color: root.active ? Theme.text : Theme.text-2;
+            font-size: 12px;
+            font-weight: root.active ? 700 : 500;
+            horizontal-alignment: center;
+        }
+    }
+
+    TouchArea {
+        clicked => {
+            Api.navigate(root.index);
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Tempo";
+    preferred-width: 400px;
+    preferred-height: 820px;
+    background: Theme.bg;
+
+    property <length> inset-top: self.safe-area-insets.top;
+    property <length> inset-bottom: self.safe-area-insets.bottom;
+    property <length> keyboard-top: self.virtual-keyboard-size.height > 0 ? self.virtual-keyboard-position.y : self.height;
+
+    // Botão "voltar" do Android: fecha o diálogo, depois volta para "Hoje"; senão, deixa o sistema tratar.
+    property <int> dialog: Dlg.kind;
+    changed dialog => {
+        if (Dlg.kind == 0) {
+            keys.focus();
+        }
+    }
+    init => {
+        keys.focus();
+    }
+
+    keys := FocusScope {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        key-pressed(event) => {
+            if (event.text == Key.Back || event.text == Key.Escape) {
+                if (Dlg.kind != 0) {
+                    Dlg.kind = 0;
+                    return accept;
+                }
+                if (Api.onboarded && Api.page != 0) {
+                    Api.navigate(0);
+                    return accept;
+                }
+            }
+            return reject;
+        }
+
+        VerticalLayout {
+            padding-top: root.inset-top;
+            padding-left: root.safe-area-insets.left;
+            padding-right: root.safe-area-insets.right;
+            spacing: 0;
+
+            if !Api.onboarded: Onboarding {
+                vertical-stretch: 1;
+                bottom-inset: root.inset-bottom;
+            }
+
+            if Api.onboarded: Rectangle {
+                vertical-stretch: 1;
+                background: Theme.bg;
+                if Api.page == 0: TodayPage {
+                    width: parent.width;
+                    height: parent.height;
+                }
+                if Api.page == 1: PlanPage {
+                    width: parent.width;
+                    height: parent.height;
+                }
+                if Api.page == 2: HistoryPage {
+                    width: parent.width;
+                    height: parent.height;
+                }
+                if Api.page == 3: SettingsPage {
+                    width: parent.width;
+                    height: parent.height;
+                }
+            }
+
+            if Api.onboarded: Rectangle {
+                vertical-stretch: 0;
+                background: Theme.surface;
+                Rectangle {
+                    y: 0;
+                    height: 1px;
+                    background: Theme.line;
+                }
+                HorizontalLayout {
+                    padding-bottom: root.inset-bottom;
+                    NavItem {
+                        icon: Icons.today;
+                        label: "Hoje";
+                        index: 0;
+                    }
+                    NavItem {
+                        icon: Icons.tune;
+                        label: "Planejar";
+                        index: 1;
+                    }
+                    NavItem {
+                        icon: Icons.chart;
+                        label: "Histórico";
+                        index: 2;
+                    }
+                    NavItem {
+                        icon: Icons.settings;
+                        label: "Ajustes";
+                        index: 3;
+                    }
+                }
+            }
+        }
+
+        if Dlg.kind == 1: TagEditorDialog {
+            x: 0;
+            y: 0;
+            width: root.width;
+            height: root.height;
+            top-inset: root.inset-top;
+            avail-height: root.keyboard-top;
+        }
+        if Dlg.kind == 2: ManualDialog {
+            x: 0;
+            y: 0;
+            width: root.width;
+            height: root.height;
+            top-inset: root.inset-top;
+            avail-height: root.keyboard-top;
+        }
+        if Dlg.kind == 3: SessionsDialog {
+            x: 0;
+            y: 0;
+            width: root.width;
+            height: root.height;
+            top-inset: root.inset-top;
+            avail-height: root.keyboard-top;
+        }
+        if Dlg.kind == 4: ConfirmDialog {
+            x: 0;
+            y: 0;
+            width: root.width;
+            height: root.height;
+            top-inset: root.inset-top;
+            avail-height: root.keyboard-top;
+        }
+    }
+
+    if Api.toast != "": Rectangle {
+        x: 16px;
+        width: root.width - 32px;
+        height: toast-text.preferred-height + 28px;
+        y: root.height - root.inset-bottom - 96px - self.height;
+        background: #2B2B30;
+        border-radius: 12px;
+        drop-shadow-blur: 12px;
+        drop-shadow-color: #00000055;
+        toast-text := Text {
+            x: 16px;
+            width: parent.width - 32px;
+            text: Api.toast;
+            color: #FFFFFF;
+            font-size: 14px;
+            wrap: word-wrap;
+            accessible-role: text;
+        }
+        TouchArea {
+            clicked => {
+                Api.toast = "";
+            }
+        }
+    }
+
+    Timer {
+        interval: 4s;
+        running: Api.toast != "";
+        triggered => {
+            Api.toast = "";
+        }
+    }
+}

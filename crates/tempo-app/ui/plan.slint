@@ -1,0 +1,199 @@
+// Planejamento: tags e porcentagens do tempo disponível (RF06–RF13).
+import { ScrollView } from "std-widgets.slint";
+import { Theme, Icons } from "theme.slint";
+import { Api, Dlg } from "api.slint";
+import { TagItem } from "types.slint";
+import { Icon, IconButton, Btn, Card, StackedBar, Muted, Title, Section } from "widgets.slint";
+
+component PlanRow inherits Rectangle {
+    in property <TagItem> item;
+    in property <bool> first;
+    in property <bool> last;
+    background: ta.pressed ? Theme.surface-2 : Theme.surface;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.line;
+    accessible-role: button;
+    accessible-label: "Editar " + item.name + ", " + item.percent + ", " + item.allocated;
+
+    ta := TouchArea {
+        clicked => {
+            Dlg.editor-id = item.id;
+            Dlg.editor-name = item.name;
+            Dlg.editor-color = item.color;
+            Dlg.editor-permille = item.permille;
+            Dlg.editor-max = Api.max-permille-for(item.id);
+            Dlg.editor-by-duration = false;
+            Dlg.editor-minutes = 60;
+            Dlg.kind = 1;
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        padding-right: 4px;
+        spacing: 8px;
+        Rectangle {
+            width: 14px;
+            height: 14px;
+            border-radius: 7px;
+            background: item.color;
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            Text {
+                text: item.name;
+                color: Theme.text;
+                font-size: 16px;
+                font-weight: 600;
+                overflow: elide;
+            }
+            Muted {
+                text: item.percent + " · " + item.allocated + " por dia";
+            }
+        }
+        IconButton {
+            icon: Icons.up;
+            label: "Mover " + item.name + " para cima";
+            enabled: !root.first;
+            clicked => {
+                Api.move-tag(item.id, -1);
+            }
+        }
+        IconButton {
+            icon: Icons.down;
+            label: "Mover " + item.name + " para baixo";
+            enabled: !root.last;
+            clicked => {
+                Api.move-tag(item.id, 1);
+            }
+        }
+    }
+}
+
+export component PlanPage inherits Rectangle {
+    background: Theme.bg;
+
+    ScrollView {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+            alignment: start;
+
+            Title {
+                text: "Planejar";
+            }
+
+            Card {
+                HorizontalLayout {
+                    Text {
+                        text: Api.plan-available;
+                        color: Theme.text;
+                        font-size: 22px;
+                        font-weight: 700;
+                        horizontal-stretch: 1;
+                    }
+                    Muted {
+                        text: "por dia";
+                        vertical-alignment: center;
+                    }
+                }
+                Muted {
+                    text: Api.plan-sleep;
+                }
+                StackedBar {
+                    segments: Api.segments;
+                }
+                HorizontalLayout {
+                    Text {
+                        text: Api.plan-allocated;
+                        color: Theme.text;
+                        font-size: 14px;
+                        font-weight: 600;
+                        horizontal-stretch: 1;
+                    }
+                    Muted {
+                        text: Api.plan-unallocated;
+                    }
+                }
+            }
+
+            for t[i] in Api.plan-tags: PlanRow {
+                item: t;
+                first: i == 0;
+                last: i == Api.plan-tags.length - 1;
+            }
+
+            Btn {
+                text: "Nova tag";
+                icon: Icons.add;
+                enabled: Api.can-add-tag;
+                clicked => {
+                    Dlg.editor-id = -1;
+                    Dlg.editor-name = "";
+                    Dlg.editor-color = #3B82F6;
+                    Dlg.editor-max = Api.max-permille-for(-1);
+                    Dlg.editor-permille = min(100, Dlg.editor-max);
+                    Dlg.editor-by-duration = false;
+                    Dlg.editor-minutes = 60;
+                    Dlg.kind = 1;
+                }
+            }
+            if !Api.can-add-tag: Muted {
+                text: "Para criar outra tag, reduza alguma porcentagem (limite de 100%) ou arquive uma tag (limite de 20 tags).";
+                horizontal-alignment: center;
+            }
+
+            if Api.archived-tags.length > 0: Section {
+                text: "ARQUIVADAS";
+            }
+            for t in Api.archived-tags: Rectangle {
+                border-radius: Theme.radius;
+                border-width: 1px;
+                border-color: Theme.line;
+                HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 4px;
+                    spacing: 8px;
+                    Rectangle {
+                        width: 14px;
+                        height: 14px;
+                        border-radius: 7px;
+                        background: t.color;
+                        opacity: 0.6;
+                    }
+                    Text {
+                        text: t.name + " (" + t.percent + ")";
+                        color: Theme.text-2;
+                        font-size: 15px;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                    }
+                    IconButton {
+                        icon: Icons.unarchive;
+                        label: "Restaurar " + t.name;
+                        clicked => {
+                            Api.restore-tag(t.id);
+                        }
+                    }
+                    IconButton {
+                        icon: Icons.delete;
+                        label: "Excluir " + t.name;
+                        tint: Theme.danger;
+                        clicked => {
+                            Dlg.confirm-title = "Excluir \"" + t.name + "\"?";
+                            Dlg.confirm-text = "A tag e todo o histórico dela serão apagados. Isso não pode ser desfeito.";
+                            Dlg.confirm-button = "Excluir";
+                            Dlg.confirm-action = "delete-tag:" + t.id;
+                            Dlg.kind = 4;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,141 @@
+// Histórico por dia e estatísticas (RF30, RF31).
+import { ScrollView } from "std-widgets.slint";
+import { Theme, Icons } from "theme.slint";
+import { Api } from "api.slint";
+import { Card, Bar, Muted, Title, Segmented } from "widgets.slint";
+
+export component HistoryPage inherits Rectangle {
+    background: Theme.bg;
+
+    ScrollView {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+            alignment: start;
+
+            Title {
+                text: "Histórico";
+            }
+
+            Segmented {
+                options: ["Dias", "7 dias", "30 dias"];
+                selected: Api.history-tab;
+                changed(i) => {
+                    Api.history-tab = i;
+                    Api.load-history(i);
+                }
+            }
+
+            if Api.history-tab == 0 && Api.history.length == 0: Muted {
+                text: "Nada registrado ainda.";
+                horizontal-alignment: center;
+            }
+
+            if Api.history-tab == 0: VerticalLayout {
+                spacing: 12px;
+                for d in Api.history: Card {
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: d.title;
+                            color: Theme.text;
+                            font-size: 16px;
+                            font-weight: 700;
+                            horizontal-stretch: 1;
+                        }
+                        if d.today: Rectangle {
+                            background: Theme.accent-soft;
+                            border-radius: 10px;
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                padding-top: 2px;
+                                padding-bottom: 2px;
+                                Text {
+                                    text: "Hoje";
+                                    color: Theme.accent;
+                                    font-size: 12px;
+                                    font-weight: 700;
+                                }
+                            }
+                        }
+                    }
+                    Muted {
+                        text: d.subtitle;
+                    }
+                    if !d.no-record: VerticalLayout {
+                        spacing: 8px;
+                        for t in d.tags: VerticalLayout {
+                            spacing: 4px;
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Rectangle {
+                                    width: 10px;
+                                    height: 10px;
+                                    border-radius: 5px;
+                                    background: t.color;
+                                }
+                                Text {
+                                    text: t.name;
+                                    color: Theme.text;
+                                    font-size: 14px;
+                                    overflow: elide;
+                                    horizontal-stretch: 1;
+                                }
+                                Text {
+                                    text: t.text;
+                                    color: t.excess ? Theme.danger : Theme.text-2;
+                                    font-size: 13px;
+                                }
+                            }
+                            Bar {
+                                progress: t.progress;
+                                tint: t.color;
+                                height: 4px;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if Api.history-tab > 0: VerticalLayout {
+                spacing: 12px;
+                Muted {
+                    text: Api.stats-caption;
+                }
+                for s in Api.stats: Card {
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Rectangle {
+                            width: 12px;
+                            height: 12px;
+                            border-radius: 6px;
+                            background: s.color;
+                        }
+                        Text {
+                            text: s.name + (s.archived ? " (arquivada)" : "");
+                            color: Theme.text;
+                            font-size: 16px;
+                            font-weight: 600;
+                            overflow: elide;
+                            horizontal-stretch: 1;
+                        }
+                        Text {
+                            text: s.compliance;
+                            color: Theme.text;
+                            font-size: 16px;
+                            font-weight: 700;
+                        }
+                    }
+                    Bar {
+                        progress: s.progress;
+                        tint: s.color;
+                    }
+                    Muted {
+                        text: s.detail;
+                    }
+                }
+            }
+        }
+    }
+}

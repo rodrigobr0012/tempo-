@@ -1,0 +1,309 @@
+// Painel do dia (RF25–RF27) com o timer (RF15–RF17).
+import { ScrollView } from "std-widgets.slint";
+import { Theme, Icons } from "theme.slint";
+import { Api, Dlg } from "api.slint";
+import { TagItem } from "types.slint";
+import { Icon, IconButton, Btn, Card, Bar, StackedBar, Muted, Title, Section, Banner } from "widgets.slint";
+
+component Hero inherits Rectangle {
+    background: Theme.surface;
+    border-radius: 24px;
+    border-width: 2px;
+    border-color: Api.hero.running ? Api.hero.color : Theme.line;
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 10px;
+        HorizontalLayout {
+            spacing: 10px;
+            Rectangle {
+                width: 12px;
+                height: 12px;
+                border-radius: 6px;
+                background: Api.hero.color;
+            }
+            Text {
+                text: Api.hero.name;
+                color: Theme.text;
+                font-size: 18px;
+                font-weight: 700;
+                overflow: elide;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+            Text {
+                text: Api.hero.running ? "Rodando" : "Pausado";
+                color: Api.hero.running ? Theme.success : Theme.text-2;
+                font-size: 13px;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+        }
+        Text {
+            text: Api.hero.big-time;
+            color: Api.hero.excess ? Theme.danger : Theme.text;
+            font-size: 54px;
+            font-weight: 300;
+            horizontal-alignment: center;
+            accessible-role: text;
+            accessible-label: "Tempo " + Api.hero.big-time;
+        }
+        Text {
+            text: Api.hero.caption;
+            color: Theme.text-2;
+            font-size: 14px;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+        Bar {
+            progress: Api.hero.progress;
+            tint: Api.hero.excess ? Theme.danger : Api.hero.color;
+            height: 8px;
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: center;
+            Btn {
+                text: Api.hero.running ? "Pausar" : "Retomar";
+                icon: Api.hero.running ? Icons.pause : Icons.play;
+                clicked => {
+                    if (Api.hero.running) {
+                        Api.pause();
+                    } else {
+                        Api.resume();
+                    }
+                }
+            }
+            Btn {
+                text: "Parar";
+                icon: Icons.stop;
+                kind: 1;
+                clicked => {
+                    Api.stop();
+                }
+            }
+        }
+    }
+}
+
+component TagRow inherits Rectangle {
+    in property <TagItem> item;
+    background: ta.pressed ? Theme.surface-2 : Theme.surface;
+    border-radius: Theme.radius;
+    border-width: item.running ? 2px : 1px;
+    border-color: item.running ? item.color : Theme.line;
+    accessible-role: button;
+    accessible-label: (item.running ? "Pausar " : "Iniciar ") + item.name;
+    accessible-description: item.consumed + " de " + item.allocated + ". " + item.status;
+
+    ta := TouchArea {
+        clicked => {
+            Api.toggle-tag(item.id);
+        }
+    }
+
+    HorizontalLayout {
+        padding: 14px;
+        spacing: 12px;
+        Rectangle {
+            width: 6px;
+            border-radius: 3px;
+            background: item.color;
+        }
+        VerticalLayout {
+            spacing: 6px;
+            alignment: center;
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: item.name;
+                    color: Theme.text;
+                    font-size: 16px;
+                    font-weight: 600;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+                Text {
+                    text: item.percent;
+                    color: Theme.text-2;
+                    font-size: 13px;
+                    vertical-alignment: center;
+                }
+            }
+            Bar {
+                progress: item.progress;
+                tint: item.excess ? Theme.danger : item.color;
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: item.consumed + " de " + item.allocated;
+                    color: Theme.text-2;
+                    font-size: 13px;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+                Text {
+                    text: item.status;
+                    color: item.excess ? Theme.danger : item.finished ? Theme.success : Theme.text-2;
+                    font-size: 13px;
+                    font-weight: 600;
+                }
+            }
+        }
+        Rectangle {
+            width: 48px;
+            height: 48px;
+            border-radius: 24px;
+            background: item.running ? item.color : Theme.surface-2;
+            Icon {
+                x: 12px;
+                y: 12px;
+                commands: item.running ? Icons.pause : Icons.play;
+                tint: item.running ? #FFFFFF : Theme.text;
+            }
+        }
+    }
+}
+
+export component TodayPage inherits Rectangle {
+    background: Theme.bg;
+
+    ScrollView {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+            alignment: start;
+
+            HorizontalLayout {
+                spacing: 4px;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    Title {
+                        text: "Hoje";
+                    }
+                    Muted {
+                        text: Api.day.title;
+                    }
+                }
+                IconButton {
+                    icon: Icons.list;
+                    label: "Sessões de hoje";
+                    clicked => {
+                        Api.open-sessions();
+                        Dlg.kind = 3;
+                    }
+                }
+                IconButton {
+                    icon: Icons.add;
+                    label: "Lançar tempo manualmente";
+                    enabled: Api.today-tags.length > 0;
+                    clicked => {
+                        Dlg.manual-tag = 0;
+                        Dlg.manual-start = Api.manual-default-start;
+                        Dlg.manual-minutes = 30;
+                        Dlg.kind = 2;
+                    }
+                }
+            }
+
+            Card {
+                HorizontalLayout {
+                    Text {
+                        text: Api.day.available;
+                        color: Theme.text;
+                        font-size: 22px;
+                        font-weight: 700;
+                        horizontal-stretch: 1;
+                    }
+                    Muted {
+                        text: "disponíveis hoje";
+                        vertical-alignment: center;
+                    }
+                }
+                StackedBar {
+                    segments: Api.segments;
+                }
+                HorizontalLayout {
+                    Muted {
+                        text: "Acordado há " + Api.day.elapsed;
+                        horizontal-stretch: 1;
+                    }
+                    Muted {
+                        text: "Até dormir: " + Api.day.until-sleep;
+                    }
+                }
+            }
+
+            if Api.day.clock-warning: Banner {
+                text: "O relógio do aparelho voltou no tempo. O timer foi encerrado no último horário válido.";
+                action: "OK";
+                clicked => {
+                    Api.dismiss-clock-warning();
+                }
+            }
+
+            if Api.day.overcommitted: Banner {
+                text: Api.day.overcommit-text;
+            }
+
+            if Api.hero.visible: Hero { }
+
+            if !Api.hero.visible && Api.today-tags.length > 0: Muted {
+                text: "Toque numa tag para iniciar o timer.";
+                horizontal-alignment: center;
+            }
+
+            for t in Api.today-tags: TagRow {
+                item: t;
+            }
+
+            if Api.today-tags.length > 0: Rectangle {
+                border-radius: Theme.radius;
+                border-width: 1px;
+                border-color: Theme.line;
+                HorizontalLayout {
+                    padding: 14px;
+                    spacing: 12px;
+                    Rectangle {
+                        width: 6px;
+                        border-radius: 3px;
+                        background: Theme.surface-2;
+                    }
+                    Text {
+                        text: "Não alocado";
+                        color: Theme.text-2;
+                        font-size: 15px;
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: Api.day.unallocated;
+                        color: Theme.text-2;
+                        font-size: 13px;
+                    }
+                }
+            }
+
+            if Api.today-tags.length == 0: Card {
+                Text {
+                    text: "Nenhuma tag planejada";
+                    color: Theme.text;
+                    font-size: 17px;
+                    font-weight: 600;
+                }
+                Muted {
+                    text: "Divida o seu tempo disponível em porcentagens: estudo, trabalho, lazer…";
+                }
+                Btn {
+                    text: "Planejar tags";
+                    icon: Icons.tune;
+                    clicked => {
+                        Api.navigate(1);
+                    }
+                }
+            }
+        }
+    }
+}

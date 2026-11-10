@@ -1,0 +1,182 @@
+// Ajustes: sono, timer, permissões e dados (RF01, RF33–RF36).
+import { ScrollView, ComboBox } from "std-widgets.slint";
+import { Theme, Icons } from "theme.slint";
+import { Api, Dlg } from "api.slint";
+import { Btn, Card, Muted, Title, Section, Stepper, ToggleRow } from "widgets.slint";
+
+export component SettingsPage inherits Rectangle {
+    background: Theme.bg;
+
+    property <string> warning: Api.sleep-warning(Api.set-bed, Api.set-wake);
+
+    ScrollView {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+            alignment: start;
+
+            Title {
+                text: "Ajustes";
+            }
+
+            Section {
+                text: "SONO";
+            }
+            Card {
+                Muted {
+                    text: "Dormir";
+                }
+                Stepper {
+                    display: Api.clock-text(Api.set-bed);
+                    small: 15;
+                    small-label: "15";
+                    step(d) => {
+                        Api.set-bed = Api.wrap-minutes(Api.set-bed + d);
+                    }
+                }
+                Muted {
+                    text: "Acordar";
+                }
+                Stepper {
+                    display: Api.clock-text(Api.set-wake);
+                    small: 15;
+                    small-label: "15";
+                    step(d) => {
+                        Api.set-wake = Api.wrap-minutes(Api.set-wake + d);
+                    }
+                }
+                Text {
+                    text: Api.sleep-summary(Api.set-bed, Api.set-wake);
+                    color: Theme.text;
+                    font-size: 15px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                if root.warning != "": Text {
+                    text: root.warning;
+                    color: Api.sleep-valid(Api.set-bed, Api.set-wake) ? Theme.warn-text : Theme.danger;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                Btn {
+                    text: "Salvar horários";
+                    enabled: Api.sleep-valid(Api.set-bed, Api.set-wake);
+                    clicked => {
+                        Api.save-schedule(Api.set-bed, Api.set-wake);
+                    }
+                }
+                Muted {
+                    text: "A mudança vale a partir do próximo dia, para não alterar o dia em andamento.";
+                    horizontal-alignment: center;
+                }
+            }
+
+            Section {
+                text: "TIMER";
+            }
+            Card {
+                inner-spacing: 0;
+                ToggleRow {
+                    text: "Continuar no excedente";
+                    detail: "Depois de zerar, o timer segue contando o tempo extra.";
+                    checked: Api.overtime;
+                    toggled(v) => {
+                        Api.set-overtime(v);
+                    }
+                }
+                ToggleRow {
+                    text: "Som ao terminar";
+                    checked: Api.sound;
+                    toggled(v) => {
+                        Api.set-sound(v);
+                    }
+                }
+                ToggleRow {
+                    text: "Vibrar ao terminar";
+                    checked: Api.vibration;
+                    toggled(v) => {
+                        Api.set-vibration(v);
+                    }
+                }
+            }
+
+            if Api.is-android: Section {
+                text: "PERMISSÕES";
+            }
+            if Api.is-android: Card {
+                Text {
+                    text: Api.notif-granted ? "Notificações permitidas" : "Notificações bloqueadas";
+                    color: Theme.text;
+                    font-size: 15px;
+                }
+                Muted {
+                    text: "Usadas para mostrar o timer em andamento e avisar quando o tempo acabar.";
+                }
+                if !Api.notif-granted: Btn {
+                    text: "Permitir notificações";
+                    kind: 1;
+                    clicked => {
+                        Api.request-notifications();
+                    }
+                }
+                Text {
+                    text: Api.exact-granted ? "Alarmes exatos permitidos" : "Alarmes exatos bloqueados";
+                    color: Theme.text;
+                    font-size: 15px;
+                }
+                Muted {
+                    text: "Sem esta permissão, o aviso de fim pode atrasar alguns minutos com o aparelho em repouso.";
+                }
+                if !Api.exact-granted: Btn {
+                    text: "Permitir alarmes exatos";
+                    kind: 1;
+                    clicked => {
+                        Api.request-exact-alarms();
+                    }
+                }
+            }
+
+            Section {
+                text: "DADOS";
+            }
+            Card {
+                Muted {
+                    text: "Manter histórico";
+                }
+                ComboBox {
+                    model: ["Para sempre", "90 dias", "180 dias", "365 dias"];
+                    current-index: Api.retention-index;
+                    selected(v) => {
+                        Api.set-retention(self.current-index);
+                    }
+                }
+                Btn {
+                    text: "Exportar sessões (CSV)";
+                    kind: 1;
+                    clicked => {
+                        Api.export-csv();
+                    }
+                }
+                Btn {
+                    text: "Apagar todos os dados";
+                    icon: Icons.delete;
+                    kind: 3;
+                    clicked => {
+                        Dlg.confirm-title = "Apagar todos os dados?";
+                        Dlg.confirm-text = "Tags, sessões, histórico e ajustes serão apagados. Isso não pode ser desfeito.";
+                        Dlg.confirm-button = "Apagar tudo";
+                        Dlg.confirm-action = "erase";
+                        Dlg.kind = 4;
+                    }
+                }
+            }
+
+            Muted {
+                text: "Tempo " + Api.version + " · seus dados ficam só neste aparelho.";
+                horizontal-alignment: center;
+            }
+        }
+    }
+}

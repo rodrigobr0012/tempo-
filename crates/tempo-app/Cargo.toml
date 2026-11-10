@@ -1,0 +1,49 @@
+[package]
+name = "tempo-app"
+description = "Interface (Slint) e integração Android do app de gestão de tempo."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "tempo_app"
+# cdylib: biblioteca carregada pela NativeActivity no Android.
+# rlib: usada pelo binário de desktop (desenvolvimento e testes visuais).
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "tempo-desktop"
+path = "src/main.rs"
+
+[dependencies]
+tempo-core.workspace = true
+tempo-store.workspace = true
+chrono.workspace = true
+log = "0.4"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+slint = { version = "1.18", default-features = false, features = [
+    "std",
+    "compat-1-2",
+    "backend-winit",
+    "renderer-femtovg",
+    "renderer-software",
+    "accessibility",
+] }
+# Só para o modo de capturas de tela (desenvolvimento).
+png = "0.18"
+
+[target.'cfg(target_os = "android")'.dependencies]
+slint = { version = "1.18", default-features = false, features = [
+    "std",
+    "compat-1-2",
+    "backend-android-activity-06",
+    "renderer-femtovg",
+    "accessibility",
+] }
+jni = "0.21.1"
+android_logger = "0.15"
+
+[build-dependencies]
+slint-build = "1.18"

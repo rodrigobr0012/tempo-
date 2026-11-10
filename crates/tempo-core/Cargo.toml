@@ -1,0 +1,11 @@
+[package]
+name = "tempo-core"
+description = "Regras de negócio puras do app de gestão de tempo (sem dependência de Android)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chrono.workspace = true
+thiserror.workspace = true
