@@ -4573,7 +4573,7 @@ dependencies = [
 
 [[package]]
 name = "tempo-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "android_logger",
  "chrono",
@@ -4588,7 +4588,7 @@ dependencies = [
 
 [[package]]
 name = "tempo-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "thiserror 2.0.21",
@@ -4596,7 +4596,7 @@ dependencies = [
 
 [[package]]
 name = "tempo-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "rusqlite",
