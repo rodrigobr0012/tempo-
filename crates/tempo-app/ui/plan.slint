@@ -4,6 +4,7 @@ import { Theme, Icons } from "theme.slint";
 import { Api, Dlg } from "api.slint";
 import { TagItem } from "types.slint";
 import { Icon, IconButton, Btn, Card, StackedBar, Muted, Title, Section } from "widgets.slint";
+import { ReservedList } from "reserved.slint";
 
 component PlanRow inherits Rectangle {
     in property <TagItem> item;
@@ -102,7 +103,7 @@ export component PlanPage inherits Rectangle {
                     }
                 }
                 Muted {
-                    text: Api.plan-sleep;
+                    text: Api.plan-reserved;
                 }
                 StackedBar {
                     segments: Api.segments;
@@ -121,6 +122,17 @@ export component PlanPage inherits Rectangle {
                 }
             }
 
+            Section {
+                text: "TEMPO RESERVADO";
+            }
+            Muted {
+                text: "Blocos que saem das 24h antes da divisão: sono, faculdade, deslocamento… Mudanças valem a partir do próximo dia.";
+            }
+            ReservedList { }
+
+            Section {
+                text: "TAGS";
+            }
             for t[i] in Api.plan-tags: PlanRow {
                 item: t;
                 first: i == 0;

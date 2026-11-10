@@ -1,21 +1,21 @@
 # Documentação — App de Gestão de Tempo por Disponibilidade
 
-> Versão 0.2 · 09/11/2026 · Status: implementado (ver seção 11)
+> Versão 0.3 · 10/11/2026 · Status: implementado (ver seção 11) · 0.3: sono fixo substituído por blocos reservados criados pelo usuário
 
 ---
 
 ## 1. Visão geral
 
-O app parte de uma ideia simples: **o dia não tem 24 horas úteis**. Descontado o sono, sobra um **tempo disponível**, e é sobre ele que a pessoa planeja.
+O app parte de uma ideia simples: **o dia não tem 24 horas úteis**. Descontado o tempo que a pessoa reserva (sono, faculdade, deslocamento…), sobra um **tempo disponível**, e é sobre ele que ela planeja.
 
-O usuário informa quanto dorme. O app calcula o tempo disponível e o usuário o divide em **porcentagens**, cada uma ligada a uma **tag** (Estudo, Trabalho, Exercício, Lazer etc.). Cada porcentagem vira uma duração concreta e um **timer** que o usuário inicia, pausa e acompanha ao longo do dia.
+O usuário cria **blocos reservados**, com nome e duração definidos por ele (ex.: "Sono 8h"). O app calcula o tempo disponível (`24h − blocos`) e o usuário o divide em **porcentagens**, cada uma ligada a uma **tag** (Estudo, Trabalho, Exercício, Lazer etc.). Cada porcentagem vira uma duração concreta e um **timer** que o usuário inicia, pausa e acompanha ao longo do dia.
 
 ### 1.1 Exemplo de referência
 
 | Item | Valor |
 |---|---|
 | Dia | 24h |
-| Sono | 8h |
+| Bloco reservado "Sono" (criado pelo usuário) | 8h |
 | **Tempo disponível** | **16h (960 min)** |
 | Tag "Estudo" = 10% | 96 min = **1h36min** |
 | Tag "Trabalho" = 50% | 480 min = **8h00min** |
@@ -34,9 +34,10 @@ O usuário informa quanto dorme. O app calcula o tempo disponível e o usuário 
 
 | Termo | Definição |
 |---|---|
-| **Período de sono** | Intervalo entre o horário de dormir e o de acordar, definido pelo usuário. |
-| **Tempo disponível (TD)** | `24h − duração do sono`. É a base de 100% para as alocações. |
-| **Dia lógico** | Ciclo do app. Começa no horário de acordar e termina no horário de acordar seguinte (não à meia-noite). |
+| **Bloco reservado** | Tempo com nome e duração definidos pelo usuário que sai das 24h antes da divisão (ex.: "Sono 8h", "Faculdade 4h"). |
+| **Tempo disponível (TD)** | `24h − soma dos blocos reservados`. É a base de 100% para as alocações. |
+| **Início do dia** | Horário configurável (padrão 04:00) em que o dia lógico vira. |
+| **Dia lógico** | Ciclo do app. Começa no horário de início do dia e termina no mesmo horário do dia seguinte (não necessariamente à meia-noite). |
 | **Tag** | Categoria de uso do tempo criada pelo usuário (ex.: Estudo). |
 | **Alocação** | Porcentagem do TD atribuída a uma tag. |
 | **Tempo alocado** | Duração resultante da alocação: `TD × porcentagem`. |
@@ -52,15 +53,15 @@ O usuário informa quanto dorme. O app calcula o tempo disponível e o usuário 
 
 Prioridade no padrão MoSCoW: **M** = obrigatório no MVP · **S** = importante · **C** = desejável · **W** = fora desta versão.
 
-### 3.1 Configuração do sono e do tempo disponível
+### 3.1 Tempo reservado e tempo disponível
 
 | ID | Requisito | Prioridade |
 |---|---|---|
-| RF01 | O usuário deve definir o horário de dormir e o horário de acordar (HH:MM). | M |
-| RF02 | O sistema deve calcular a duração do sono a partir desses horários, incluindo intervalos que cruzam a meia-noite (ex.: 23:00 → 07:00 = 8h). | M |
-| RF03 | O sistema deve calcular e exibir o tempo disponível (TD) = 24h − sono. | M |
-| RF04 | Na primeira execução, o app deve apresentar um assistente (onboarding) que pede os horários de sono antes de qualquer outra tela. | M |
-| RF05 | O usuário pode configurar horários de sono diferentes por dia da semana (ex.: fim de semana). | C |
+| RF01 | O usuário deve **criar, editar e excluir blocos reservados**, cada um com **nome** e **duração** escolhidos por ele (ex.: "Sono 8h", "Faculdade 4h"). Pode não haver nenhum bloco. | M |
+| RF02 | O usuário deve definir o horário de **início do dia** (HH:MM, padrão 04:00), em que os timers zeram e um novo dia começa. | M |
+| RF03 | O sistema deve calcular e exibir o tempo disponível (TD) = 24h − soma dos blocos reservados. | M |
+| RF04 | Na primeira execução, o app deve apresentar um assistente (onboarding) com os blocos reservados (sugerindo "Sono 8h", editável e removível) e o início do dia, antes de qualquer outra tela. | M |
+| RF05 | O usuário pode configurar blocos reservados diferentes por dia da semana (ex.: fim de semana). | C |
 
 ### 3.2 Tags e alocação
 
@@ -95,9 +96,9 @@ Prioridade no padrão MoSCoW: **M** = obrigatório no MVP · **S** = importante 
 
 | ID | Requisito | Prioridade |
 |---|---|---|
-| RF25 | A tela inicial deve mostrar: TD do dia, tempo decorrido desde o acordar, e para cada tag o alocado, consumido e restante. | M |
+| RF25 | A tela inicial deve mostrar: TD do dia, tempo decorrido desde o início do dia, e para cada tag o alocado, consumido e restante. | M |
 | RF26 | A tela inicial deve destacar o timer ativo, se houver, com acesso rápido a pausar. | M |
-| RF27 | O painel deve mostrar quanto do TD ainda resta no dia lógico (até o horário de dormir) e alertar se a soma dos restantes das tags não cabe mais nesse tempo. | S |
+| RF27 | O painel deve mostrar quanto falta para o fim do dia lógico e alertar se a soma dos restantes das tags não cabe mais nesse tempo. | S |
 
 ### 3.5 Histórico e estatísticas
 
@@ -134,9 +135,9 @@ Prioridade no padrão MoSCoW: **M** = obrigatório no MVP · **S** = importante 
 
 | ID | Regra |
 |---|---|
-| RN01 | **Tempo disponível:** `TD = 86.400 s − duração_do_sono_em_segundos`. |
-| RN02 | **Duração do sono:** se `acordar > dormir`, `sono = acordar − dormir`; senão, `sono = (24h − dormir) + acordar`. Horários iguais são inválidos. |
-| RN03 | **Limites do sono:** o sono deve estar entre **1h** e **20h**. Abaixo de 4h ou acima de 12h, o app exibe aviso, mas aceita. |
+| RN01 | **Tempo disponível:** `TD = 86.400 s − soma das durações dos blocos reservados (s)`. |
+| RN02 | **Limites dos blocos:** cada bloco tem duração > 0 (passos de 15 min na interface); a soma de todos os blocos é de no máximo **23h**, para sobrar ao menos 1h disponível. |
+| RN03 | **Nomes dos blocos:** de 1 a 30 caracteres e **únicos** entre os blocos (sem diferenciar maiúsculas, minúsculas e acentos). Máximo de **20 blocos**. Um bloco pode ter o mesmo nome de uma tag. |
 | RN04 | **Tempo alocado:** `alocado = floor(TD × porcentagem)`, calculado em **segundos inteiros**. Exemplo: TD = 57.600 s, 10% → 5.760 s = 1h36min. |
 | RN05 | **Precisão da porcentagem:** uma casa decimal (0,1%). Internamente, guardada como inteiro em **milésimos** (10% = 100) para evitar erro de ponto flutuante. |
 | RN06 | **Sobras de arredondamento** (frações de segundo descartadas pelo `floor`) vão para o "Não alocado". A soma dos alocados nunca ultrapassa o TD. |
@@ -154,7 +155,7 @@ Prioridade no padrão MoSCoW: **M** = obrigatório no MVP · **S** = importante 
 | RN13 | "Não alocado" é uma categoria do sistema: não pode ser renomeada, excluída nem receber timer. |
 | RN14 | **Excluir** uma tag com histórico exige confirmação e apaga o histórico dela. **Arquivar** mantém o histórico e libera a porcentagem. |
 | RN15 | **Alteração no meio do dia:** mudar a porcentagem de uma tag recalcula o alocado imediatamente; o consumido é preservado. Se o novo alocado for menor que o consumido, a diferença passa a ser excedente. |
-| RN16 | **Alteração do sono no meio do dia:** vale a partir do **próximo dia lógico**, para não alterar a base do dia em andamento. |
+| RN16 | **Alteração do tempo reservado ou do início do dia no meio do dia:** vale a partir do **próximo dia lógico**, para não alterar a base do dia em andamento. |
 
 ### 4.3 Timer
 
@@ -164,8 +165,8 @@ Prioridade no padrão MoSCoW: **M** = obrigatório no MVP · **S** = importante 
 | RN18 | O timer é baseado em **marcação de tempo**, não em contagem de ticks: ao iniciar, grava-se o instante de início; o consumido é `agora − início + consumido_anterior`. Assim, o timer sobrevive ao fechamento do app, ao encerramento do processo pelo sistema e à reinicialização do aparelho. |
 | RN19 | **Pausar** encerra a sessão atual e soma sua duração ao consumido. **Parar** faz o mesmo e zera o estado "ativo" da tag. O consumido do dia é mantido nos dois casos. |
 | RN20 | **Fim do timer:** ao atingir o alocado, o sistema notifica (RF20). Se o excedente estiver ativado, a contagem segue; senão, a sessão é encerrada automaticamente no instante exato em que zerou. |
-| RN21 | **Virada do dia lógico com timer ativo:** a sessão é dividida no horário de acordar — a parte anterior fica no dia que termina e a posterior inicia o novo dia, com o timer continuando a rodar. |
-| RN22 | **Tempo no período de sono:** sessões podem continuar no período de sono (o usuário pode ter ficado acordado); o tempo é contado normalmente no dia lógico corrente. |
+| RN21 | **Virada do dia lógico com timer ativo:** a sessão é dividida no horário de início do dia — a parte anterior fica no dia que termina e a posterior inicia o novo dia, com o timer continuando a rodar. |
+| RN22 | **Tempo durante blocos reservados:** os blocos não têm horário fixo; sessões podem acontecer a qualquer hora e contam normalmente no dia lógico corrente. |
 | RN23 | **Lançamento manual (RF23):** não pode sobrepor outra sessão já registrada nem ficar no futuro. |
 | RN24 | **Mudança de relógio/fuso:** se o relógio do aparelho retroceder durante uma sessão ativa, a sessão é encerrada no último instante válido conhecido e o usuário é avisado. Durações nunca podem ser negativas. |
 
@@ -173,7 +174,7 @@ Prioridade no padrão MoSCoW: **M** = obrigatório no MVP · **S** = importante 
 
 | ID | Regra |
 |---|---|
-| RN25 | O dia lógico começa no horário de acordar configurado e é identificado pela data em que começou. |
+| RN25 | O dia lógico começa no horário de início do dia configurado (padrão 04:00) e é identificado pela data em que começou. |
 | RN26 | Na virada, o consumido de todas as tags é zerado e um novo dia é criado com as alocações vigentes. |
 | RN27 | Se o app ficar sem abrir por vários dias, ao abrir ele cria os dias faltantes como "sem registro" (consumido zero), sem pedir confirmação. |
 | RN28 | O histórico guarda uma cópia (snapshot) de TD, porcentagens e alocados de cada dia, para que mudanças futuras não alterem o passado. |
@@ -257,11 +258,13 @@ Prioridade no padrão MoSCoW: **M** = obrigatório no MVP · **S** = importante 
 
 ```
 Configuracao
-  horario_dormir      HH:MM
-  horario_acordar     HH:MM
+  inicio_do_dia       HH:MM   (padrão 04:00)
   excedente_ativo     bool
   som / vibracao      bool
   retencao_dias       int | null
+
+BlocoReservado         (RF01)
+  id, nome, duracao_segundos, ordem
 
 Tag
   id, nome, cor, ordem
@@ -287,8 +290,8 @@ Sessao
 ## 8. Fluxos principais
 
 ### 8.1 Primeira execução
-1. Boas-vindas → informa horário de dormir e acordar.
-2. O app mostra o TD calculado ("Você tem 16h disponíveis por dia").
+1. Boas-vindas → lista de blocos reservados, já com a sugestão "Sono 8h" (o usuário edita, apaga ou cria outros) e o horário de início do dia.
+2. O app mostra o TD calculado ("8h reservadas · 16h disponíveis por dia").
 3. Cria/aceita tags e define as porcentagens, vendo a duração em tempo real.
 4. Pede a permissão de notificação, explicando o motivo.
 5. Vai para o painel do dia.
@@ -300,7 +303,7 @@ Sessao
 4. Quando Trabalho zera → notificação de fim; segue como excedente ou para (RN20).
 
 ### 8.3 Virada do dia
-1. Chega o horário de acordar → o dia anterior é fechado e gravado no histórico (RN26, RN28).
+1. Chega o horário de início do dia → o dia anterior é fechado e gravado no histórico (RN26, RN28).
 2. Um timer ativo é dividido entre os dois dias (RN21).
 3. O painel mostra o novo dia com todos os alocados cheios.
 
@@ -310,21 +313,23 @@ Sessao
 
 | Cenário | Dado | Quando | Então |
 |---|---|---|---|
-| Cálculo básico | dormir 23:00, acordar 07:00 | abre o painel | TD = 16h00min |
+| Cálculo básico | bloco "Sono 8h" | abre o painel | TD = 16h00min |
+| Vários blocos | "Sono 8h" e "Faculdade 4h" | abre o painel no dia seguinte | TD = 12h00min |
+| Limite de 23h | blocos somam 23h | tenta criar outro bloco | erro "podem somar no máximo 23h" |
 | Porcentagem → tempo | TD = 16h | cria tag com 10% | exibe 1h36min |
 | Decimal | TD = 16h | cria tag com 12,3% | alocado = 7.084 s (1h58min04s) |
 | Limite de 100% | tags somam 95% | tenta criar tag com 10% | salvar fica bloqueado com mensagem "Restam apenas 5%" |
 | Um timer por vez | Estudo rodando | inicia Trabalho | Estudo pausa, Trabalho roda |
 | Sobrevive ao kill | timer rodando há 10 min | o sistema mata o app e ele é reaberto 5 min depois | consumido = 15 min |
 | Reboot | timer rodando | o aparelho reinicia | notificação e alarme de fim reaparecem |
-| Mudança de sono | meio do dia, sono alterado para 7h | — | TD de hoje continua 16h; amanhã será 17h |
+| Mudança no reservado | meio do dia, "Sono" alterado para 7h | — | TD de hoje continua 16h; amanhã será 17h |
 
 ---
 
 ## 10. Decisões tomadas na implementação
 
 1. **Excedente e "Não alocado":** o excedente é exibido à parte, na própria tag; não desconta do "Não alocado".
-2. **Sono real:** não é registrado nesta versão; vale o sono planejado.
+2. **Blocos reservados sem horário:** um bloco é só uma duração (ex.: 8h), não um intervalo no relógio. O dia vira no horário de início configurado, não no "acordar". Bancos da versão 0.1 são convertidos automaticamente: o par dormir/acordar vira o bloco "Sono" e o acordar vira o início do dia.
 3. **Rotinas por dia da semana (RF05):** fora desta versão.
 4. **Shim Java:** aceito, em Java (sem Kotlin, para não exigir plugin extra). São 4 classes: `Bridge` (APIs do Android), `Native` (carrega a biblioteca Rust), `TimerReceiver` (botões da notificação e alarme) e `SystemReceiver` (boot, atualização, relógio/fuso). Nenhuma tem regra de negócio.
 5. **Sem serviço em primeiro plano:** como o timer é por marcação de tempo (RN18), a notificação persistente é uma notificação `ongoing` com o **cronômetro do próprio sistema** (contagem regressiva até o fim; depois, contagem do excedente), e o fim é avisado por `AlarmManager`. Isso atende RF18/RF19 sem wake lock (RNF13) e sem as restrições de `foregroundServiceType` do Android 14+. No Android 14+, o usuário pode dispensar essa notificação; o timer continua correndo mesmo assim.
@@ -338,7 +343,7 @@ Sessao
 |---|---|
 | Implementado | RF01–RF04, RF06–RF21, RF23, RF25–RF32, RF34–RF36 |
 | Parcial | **RF24**: é possível apagar sessões do dia; editar não (apague e lance de novo com RF23). **RF32**: exporta CSV (sessões); JSON não. |
-| Não implementado (desejáveis) | **RF05** (sono por dia da semana), **RF22** (aviso antecipado), **RF33** (backup/restauração por arquivo) |
+| Não implementado (desejáveis) | **RF05** (blocos por dia da semana), **RF22** (aviso antecipado), **RF33** (backup/restauração por arquivo) |
 
 ### 11.2 Requisitos não funcionais — observações
 

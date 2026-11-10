@@ -55,6 +55,17 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX sessions_day ON sessions(day_id, tag_id);
     CREATE INDEX sessions_active ON sessions(end_utc) WHERE end_utc IS NULL;
     "#,
+    // v2: tempo reservado definido pelo usuário (substitui o par dormir/acordar)
+    r#"
+    CREATE TABLE reserved (
+        id            INTEGER PRIMARY KEY,
+        name          TEXT    NOT NULL,
+        name_key      TEXT    NOT NULL UNIQUE,
+        duration_secs INTEGER NOT NULL CHECK (duration_secs > 0),
+        position      INTEGER NOT NULL,
+        created_at    INTEGER NOT NULL
+    );
+    "#,
 ];
 
 #[cfg(test)]

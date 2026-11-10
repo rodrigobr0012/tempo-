@@ -11,3 +11,6 @@ tempo-core.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
 rusqlite = { version = "0.41", features = ["bundled"] }
+
+[dev-dependencies]
+rusqlite = { version = "0.41", features = ["bundled"] }

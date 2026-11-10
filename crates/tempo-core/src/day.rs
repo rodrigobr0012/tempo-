@@ -1,6 +1,6 @@
 //! Relógio e dia lógico (RN25).
 //!
-//! O dia lógico começa no horário de acordar e termina no horário de acordar seguinte.
+//! O dia lógico começa no horário configurado (padrão 04:00) e termina no mesmo horário do dia seguinte.
 //! Instantes são guardados como segundos Unix (UTC); a conversão para o horário local
 //! passa pelo trait [`Clock`], o que permite testar com relógio manual.
 
@@ -116,23 +116,23 @@ pub struct DayBounds {
     pub end: i64,
 }
 
-/// Limites do dia lógico que começa na data `date`, com o horário de acordar `wake`.
-pub fn day_bounds_for_date(clock: &dyn Clock, date: NaiveDate, wake: ClockTime) -> DayBounds {
-    let wake_t = wake.to_naive_time();
-    let start = clock.local_to_utc(date.and_time(wake_t));
+/// Limites do dia lógico que começa na data `date`, com início em `day_start`.
+pub fn day_bounds_for_date(clock: &dyn Clock, date: NaiveDate, day_start: ClockTime) -> DayBounds {
+    let start_t = day_start.to_naive_time();
+    let start = clock.local_to_utc(date.and_time(start_t));
     let next = date.succ_opt().unwrap_or(date);
-    let end = clock.local_to_utc(next.and_time(wake_t)).max(start + 1);
+    let end = clock.local_to_utc(next.and_time(start_t)).max(start + 1);
     DayBounds { date, start, end }
 }
 
 /// Dia lógico que contém o instante `ts` (RN25).
-pub fn day_bounds_containing(clock: &dyn Clock, ts: i64, wake: ClockTime) -> DayBounds {
+pub fn day_bounds_containing(clock: &dyn Clock, ts: i64, day_start: ClockTime) -> DayBounds {
     let local = clock.utc_to_local(ts);
     let mut date = local.date();
-    if local.time() < wake.to_naive_time() {
+    if local.time() < day_start.to_naive_time() {
         date = date.pred_opt().unwrap_or(date);
     }
-    let b = day_bounds_for_date(clock, date, wake);
+    let b = day_bounds_for_date(clock, date, day_start);
     // Proteção contra bordas de horário de verão: garante start <= ts < end.
     DayBounds { date: b.date, start: b.start.min(ts), end: b.end.max(ts + 1) }
 }
@@ -151,8 +151,8 @@ mod tests {
     #[test]
     fn dia_comeca_no_horario_de_acordar() {
         let clock = ManualClock::at_local(local(2026, 11, 9, 10, 0), BRT);
-        let wake = ClockTime::new(7, 0).unwrap();
-        let b = day_bounds_containing(&clock, clock.now(), wake);
+        let day_start = ClockTime::new(7, 0).unwrap();
+        let b = day_bounds_containing(&clock, clock.now(), day_start);
         assert_eq!(b.date, NaiveDate::from_ymd_opt(2026, 11, 9).unwrap());
         assert_eq!(clock.utc_to_local(b.start), local(2026, 11, 9, 7, 0));
         assert_eq!(clock.utc_to_local(b.end), local(2026, 11, 10, 7, 0));
@@ -162,16 +162,16 @@ mod tests {
     #[test]
     fn madrugada_pertence_ao_dia_anterior() {
         let clock = ManualClock::at_local(local(2026, 11, 10, 2, 30), BRT);
-        let wake = ClockTime::new(7, 0).unwrap();
-        let b = day_bounds_containing(&clock, clock.now(), wake);
+        let day_start = ClockTime::new(7, 0).unwrap();
+        let b = day_bounds_containing(&clock, clock.now(), day_start);
         assert_eq!(b.date, NaiveDate::from_ymd_opt(2026, 11, 9).unwrap());
     }
 
     #[test]
     fn exatamente_no_horario_de_acordar_comeca_novo_dia() {
         let clock = ManualClock::at_local(local(2026, 11, 10, 7, 0), BRT);
-        let wake = ClockTime::new(7, 0).unwrap();
-        let b = day_bounds_containing(&clock, clock.now(), wake);
+        let day_start = ClockTime::new(7, 0).unwrap();
+        let b = day_bounds_containing(&clock, clock.now(), day_start);
         assert_eq!(b.date, NaiveDate::from_ymd_opt(2026, 11, 10).unwrap());
         assert_eq!(b.start, clock.now());
     }

@@ -6,11 +6,11 @@ pub enum CoreError {
     #[error("Horário inválido: use HH:MM entre 00:00 e 23:59.")]
     InvalidClockTime,
 
-    #[error("O horário de dormir e o de acordar não podem ser iguais.")]
-    SleepTimesEqual,
+    #[error("Os blocos reservados podem somar no máximo 23h. Restam apenas {available} para reservar.")]
+    ReservedExceeded { available: String },
 
-    #[error("O sono deve durar entre 1h e 20h.")]
-    SleepOutOfRange,
+    #[error("Limite de 20 blocos reservados atingido.")]
+    TooManyReserved,
 
     #[error("Porcentagem inválida: use um valor entre 0,1% e 100%.")]
     InvalidPercent,
@@ -18,14 +18,14 @@ pub enum CoreError {
     #[error("A soma das porcentagens ultrapassa 100%. Restam apenas {available}.")]
     AllocationExceeded { available: String },
 
-    #[error("O nome da tag é obrigatório.")]
-    TagNameEmpty,
+    #[error("O nome é obrigatório.")]
+    NameEmpty,
 
-    #[error("O nome da tag pode ter no máximo 30 caracteres.")]
-    TagNameTooLong,
+    #[error("O nome pode ter no máximo 30 caracteres.")]
+    NameTooLong,
 
-    #[error("Já existe uma tag chamada \"{0}\".")]
-    TagNameDuplicate(String),
+    #[error("Já existe um item chamado \"{0}\".")]
+    NameDuplicate(String),
 
     #[error("Limite de 20 tags ativas atingido.")]
     TooManyTags,

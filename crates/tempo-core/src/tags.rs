@@ -30,10 +30,10 @@ pub const SUGGESTED_TAGS: [(&str, u16, u32); 4] =
 pub fn normalize_name(raw: &str) -> CoreResult<String> {
     let name = raw.split_whitespace().collect::<Vec<_>>().join(" ");
     if name.is_empty() {
-        return Err(CoreError::TagNameEmpty);
+        return Err(CoreError::NameEmpty);
     }
     if name.chars().count() > MAX_NAME_CHARS {
-        return Err(CoreError::TagNameTooLong);
+        return Err(CoreError::NameTooLong);
     }
     Ok(name)
 }
@@ -84,9 +84,9 @@ mod tests {
     #[test]
     fn nome_normalizado() {
         assert_eq!(normalize_name("  Estudo   de  Rust ").unwrap(), "Estudo de Rust");
-        assert_eq!(normalize_name("   "), Err(CoreError::TagNameEmpty));
+        assert_eq!(normalize_name("   "), Err(CoreError::NameEmpty));
         assert_eq!(normalize_name(&"a".repeat(30)).unwrap().len(), 30);
-        assert_eq!(normalize_name(&"a".repeat(31)), Err(CoreError::TagNameTooLong));
+        assert_eq!(normalize_name(&"a".repeat(31)), Err(CoreError::NameTooLong));
         // 30 caracteres acentuados (mais de 30 bytes) são aceitos
         assert!(normalize_name(&"é".repeat(30)).is_ok());
     }

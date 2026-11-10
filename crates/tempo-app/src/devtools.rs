@@ -7,8 +7,8 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use slint::{ComponentHandle, Timer, TimerMode};
-use tempo_core::{ClockTime, Permille, SleepSchedule};
-use tempo_store::NewTag;
+use tempo_core::{ClockTime, Permille};
+use tempo_store::{NewReserved, NewTag};
 
 use crate::platform::DesktopPlatform;
 use crate::{state, ui, Api, AppWindow, Dlg};
@@ -57,6 +57,15 @@ const STEPS: &[Step] = &[
         w.global::<Api>().invoke_open_sessions();
         w.global::<Dlg>().set_kind(3);
     }),
+    ("11-bloco-reservado", |w| {
+        let d = w.global::<Dlg>();
+        d.set_kind(0);
+        w.global::<Api>().invoke_navigate(1);
+        d.set_reserved_id(-1);
+        d.set_reserved_name("Faculdade".into());
+        d.set_reserved_minutes(4 * 60);
+        d.set_kind(5);
+    }),
     ("10-confirmar", |w| {
         let d = w.global::<Dlg>();
         d.set_confirm_title("Apagar todos os dados?".into());
@@ -69,8 +78,10 @@ const STEPS: &[Step] = &[
 /// Dados de demonstração: sessões encerradas e o timer de "Estudo" rodando.
 fn seed() {
     let _ = state::with(|t| {
+        t.prepare_onboarding()?;
+        t.create_reserved(&NewReserved { name: "Faculdade".into(), duration: 4 * 3600 })?;
         t.complete_onboarding(
-            SleepSchedule::new(ClockTime::new(23, 0)?, ClockTime::new(7, 0)?)?,
+            ClockTime::new(7, 0)?,
             &[
                 NewTag { name: "Trabalho".into(), color: 0x3B82F6, permille: Permille::new(500)? },
                 NewTag { name: "Estudo".into(), color: 0x8B5CF6, permille: Permille::new(100)? },

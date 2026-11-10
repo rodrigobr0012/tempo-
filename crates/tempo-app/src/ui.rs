@@ -8,10 +8,10 @@ use chrono::Timelike;
 
 use slint::{ComponentHandle, Model, SharedString, Timer, TimerMode};
 use tempo_core::format::{hm, short};
-use tempo_core::sleep::sleep_secs_between;
+use tempo_core::reserved::{check_reserved, SECS_PER_DAY};
 use tempo_core::tags::SUGGESTED_TAGS;
-use tempo_core::{allocated_secs, Clock, ClockTime, Permille, SleepSchedule, SECS_PER_DAY};
-use tempo_store::{NewTag, Tempo};
+use tempo_core::{allocated_secs, available_secs, Clock, ClockTime, Permille};
+use tempo_store::{NewReserved, NewTag, Tempo};
 
 use crate::platform::{timer_sync, Platform};
 use crate::present::{self, model};
@@ -25,6 +25,8 @@ struct Cache {
     available: Cell<i64>,
     active_tag_ids: RefCell<Vec<i64>>,
     plan_total_others: RefCell<Vec<(i64, u16)>>,
+    /// (id, segundos) dos blocos reservados, para a prévia do editor.
+    reserved: RefCell<Vec<(i64, i64)>>,
 }
 
 struct Ctx {
@@ -77,7 +79,9 @@ impl Ctx {
         let onboarded = state::with(|t| Ok(t.settings()?.onboarded)).unwrap_or(false);
         api.set_onboarded(onboarded);
         if !onboarded {
+            let _ = state::with(|t| t.prepare_onboarding());
             reset_suggestions(&ui);
+            self.refresh_reserved();
             return;
         }
         self.refresh_today();
@@ -168,8 +172,17 @@ impl Ctx {
                 .collect::<Vec<TagItem>>(),
         ));
         api.set_plan_available(hm(available).into());
-        let s = settings.schedule;
-        api.set_plan_sleep(format!("Sono das {} às {} ({}).", s.bedtime(), s.wake(), short(s.sleep_secs())).into());
+        let _ = settings;
+        let reserved_today = SECS_PER_DAY - available;
+        api.set_plan_reserved(
+            if reserved_today > 0 {
+                format!("Hoje: 24h − {} reservadas.", short(reserved_today))
+            } else {
+                "Hoje: 24h inteiras, sem tempo reservado.".to_string()
+            }
+            .into(),
+        );
+        self.refresh_reserved();
         api.set_plan_allocated(format!("Alocado {total}").into());
         api.set_plan_unallocated(
             format!("Não alocado {free} · {}", short(available - allocated_secs(available, total))).into(),
@@ -181,8 +194,7 @@ impl Ctx {
         let Some(ui) = self.ui() else { return };
         let Some(s) = self.run(|t| t.settings()) else { return };
         let api = ui.global::<Api>();
-        api.set_set_bed(i32::from(s.schedule.bedtime().minutes()));
-        api.set_set_wake(i32::from(s.schedule.wake().minutes()));
+        api.set_set_day_start(i32::from(s.day_start.minutes()));
         api.set_overtime(s.overtime);
         api.set_sound(s.sound);
         api.set_vibration(s.vibration);
@@ -221,6 +233,27 @@ impl Ctx {
         }
     }
 
+    /// Lista de blocos reservados e o resumo "Xh reservadas · Yh disponíveis" (RF01–RF03).
+    fn refresh_reserved(&self) {
+        let Some(ui) = self.ui() else { return };
+        let Some(list) = self.run(|t| t.reserved()) else { return };
+        *self.cache.reserved.borrow_mut() = list.iter().map(|r| (r.id, r.duration)).collect();
+        let total: i64 = list.iter().map(|r| r.duration).sum();
+        let api = ui.global::<Api>();
+        api.set_reserved(model(list.iter().map(present::reserved_item).collect()));
+        api.set_reserved_summary(
+            format!("{} reservadas · {} disponíveis por dia", short(total), short(available_secs(total))).into(),
+        );
+        if !api.get_onboarded() {
+            // Antes do primeiro dia, as prévias de porcentagem usam o tempo disponível configurado.
+            self.cache.available.set(available_secs(total));
+        }
+    }
+
+    fn reserved_others(&self, id: i64) -> i64 {
+        self.cache.reserved.borrow().iter().filter(|(r, _)| *r != id).map(|(_, d)| *d).sum()
+    }
+
     /// Após uma ação no timer: sincroniza o sistema e atualiza a tela.
     fn after_timer_action(&self) {
         self.sync_platform();
@@ -252,10 +285,6 @@ fn clock_time(minutes: i32) -> ClockTime {
     ClockTime::from_minutes(minutes.rem_euclid(1440) as u16).expect("minutos válidos")
 }
 
-fn schedule(bed: i32, wake: i32) -> Result<SleepSchedule, tempo_core::CoreError> {
-    SleepSchedule::new(clock_time(bed), clock_time(wake))
-}
-
 pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
     let ctx = Rc::new(Ctx { ui: ui.as_weak(), platform, cache: Cache::default(), ticks: Cell::new(0) });
     let api = ui.global::<Api>();
@@ -265,18 +294,45 @@ pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
     // ---------------------------------------------------------------- formatação pura
     api.on_clock_text(|m| clock_time(m).to_string().into());
     api.on_wrap_minutes(|m| m.rem_euclid(1440));
-    api.on_sleep_valid(|b, w| schedule(b, w).is_ok());
-    api.on_sleep_summary(|b, w| {
-        let sleep = sleep_secs_between(clock_time(b), clock_time(w));
-        if b == w {
-            return "Escolha horários diferentes.".into();
-        }
-        format!("{} de sono · {} disponíveis por dia", short(sleep), short(SECS_PER_DAY - sleep)).into()
-    });
-    api.on_sleep_warning(|b, w| match schedule(b, w) {
-        Err(e) => e.to_string().into(),
-        Ok(s) => s.warning().map(|w| w.message()).unwrap_or("").into(),
-    });
+    {
+        let c = ctx.clone();
+        api.on_reserved_valid(move |id, minutes| {
+            check_reserved(c.reserved_others(i64::from(id)), i64::from(minutes) * 60).is_ok()
+        });
+    }
+    {
+        let c = ctx.clone();
+        api.on_reserved_preview(move |id, minutes| {
+            let others = c.reserved_others(i64::from(id));
+            match check_reserved(others, i64::from(minutes) * 60) {
+                Ok(()) => {
+                    format!("Sobram {} disponíveis por dia", short(available_secs(others + i64::from(minutes) * 60)))
+                        .into()
+                }
+                Err(e) => e.to_string().into(),
+            }
+        });
+    }
+    {
+        let c = ctx.clone();
+        api.on_save_reserved(move |id, name, minutes| {
+            let new = NewReserved { name: name.to_string(), duration: i64::from(minutes) * 60 };
+            let onboarded = c.ui().is_some_and(|ui| ui.global::<Api>().get_onboarded());
+            let ok = if id < 0 {
+                c.run(|t| t.create_reserved(&new)).is_some()
+            } else {
+                c.run(|t| t.update_reserved(i64::from(id), &new)).is_some()
+            };
+            if ok {
+                c.refresh_reserved();
+                if onboarded {
+                    c.refresh_plan();
+                    c.toast("Salvo. O tempo disponível muda a partir do próximo dia.");
+                }
+            }
+            ok
+        });
+    }
     api.on_permille_text(|p| Permille::saturating(i64::from(p)).to_string().into());
     {
         let c = ctx.clone();
@@ -328,12 +384,8 @@ pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
     // ---------------------------------------------------------------- primeira execução
     {
         let c = ctx.clone();
-        api.on_finish_onboarding(move |bed, wake| {
+        api.on_finish_onboarding(move |day_start| {
             let Some(ui) = c.ui() else { return };
-            let s = match schedule(bed, wake) {
-                Ok(s) => s,
-                Err(e) => return c.toast(e.to_string()),
-            };
             let chosen: Vec<NewTag> = ui
                 .global::<Api>()
                 .get_suggestions()
@@ -347,7 +399,7 @@ pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
                     })
                 })
                 .collect();
-            if c.run(|t| t.complete_onboarding(s, &chosen)).is_some() {
+            if c.run(|t| t.complete_onboarding(clock_time(day_start), &chosen)).is_some() {
                 c.platform.request_notifications();
                 ui.global::<Api>().set_page(0);
                 c.refresh_all();
@@ -500,6 +552,15 @@ pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
                     }
                     c.refresh_all();
                 }
+            } else if let Some(id) = action.strip_prefix("delete-reserved:").and_then(|v| v.parse::<i64>().ok()) {
+                if c.run(|t| t.delete_reserved(id)).is_some() {
+                    c.refresh_reserved();
+                    let onboarded = c.ui().is_some_and(|ui| ui.global::<Api>().get_onboarded());
+                    if onboarded {
+                        c.refresh_plan();
+                        c.toast("Bloco excluído. O tempo volta a ficar disponível a partir do próximo dia.");
+                    }
+                }
             } else if let Some(id) = action.strip_prefix("delete-tag:").and_then(|v| v.parse::<i64>().ok()) {
                 if c.run(|t| t.delete_tag(id)).is_some() {
                     c.sync_platform();
@@ -520,14 +581,10 @@ pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
     // ---------------------------------------------------------------- ajustes
     {
         let c = ctx.clone();
-        api.on_save_schedule(move |bed, wake| match schedule(bed, wake) {
-            Ok(s) => {
-                if c.run(|t| t.set_schedule(s)).is_some() {
-                    c.refresh_plan();
-                    c.toast("Horários salvos. Valem a partir do próximo dia.");
-                }
+        api.on_save_day_start(move |m| {
+            if c.run(|t| t.set_day_start(clock_time(m))).is_some() {
+                c.toast("Horário salvo. Vale a partir do próximo dia.");
             }
-            Err(e) => c.toast(e.to_string()),
         });
     }
     {

@@ -1,9 +1,9 @@
 # Tempo — gestão de tempo por disponibilidade
 
-App Android, escrito em Rust, que divide o **tempo disponível** do dia (24h − sono) em
+App Android, escrito em Rust, que divide o **tempo disponível** do dia (24h − tempo reservado) em
 **porcentagens por tag** e transforma cada porcentagem em um **timer**.
 
-> Dormindo 8h, sobram 16h. Estudo = 10% → 1h36min de timer por dia.
+> Reservando 8h de sono (um bloco criado por você), sobram 16h. Estudo = 10% → 1h36min de timer por dia.
 
 A especificação completa (requisitos funcionais, não funcionais e regras de negócio) está em
 [`documentação.md`](documentação.md). Os comentários no código citam os IDs de lá (`RN15`, `RF21`…).
@@ -72,6 +72,17 @@ $env:TEMPO_SNAPSHOTS="shots"; cargo run -p tempo-app --bin tempo-desktop   # sal
 ```
 
 No desktop, notificações e alarmes são apenas registrados em log, e "Exportar CSV" grava um arquivo.
+
+### Atualização automática enquanto edita
+
+```powershell
+./scripts/dev.ps1
+```
+
+- Salvou um `.slint`: a tela muda na hora, sem fechar o app (Slint live-preview).
+- Salvou um `.rs`: o app é recompilado e reaberto sozinho (cargo-watch).
+
+Usa `target/dev` como pasta de compilação, separada do `target/debug`.
 
 ## Testes e qualidade
 

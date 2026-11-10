@@ -16,6 +16,10 @@ crate-type = ["cdylib", "rlib"]
 name = "tempo-desktop"
 path = "src/main.rs"
 
+[features]
+# Desenvolvimento no desktop: recarrega os arquivos .slint com o app aberto (scripts/dev.ps1).
+live-preview = ["slint/live-preview"]
+
 [dependencies]
 tempo-core.workspace = true
 tempo-store.workspace = true

@@ -228,11 +228,11 @@ export component TodayPage inherits Rectangle {
                 }
                 HorizontalLayout {
                     Muted {
-                        text: "Acordado há " + Api.day.elapsed;
+                        text: "Dia começou há " + Api.day.elapsed;
                         horizontal-stretch: 1;
                     }
                     Muted {
-                        text: "Até dormir: " + Api.day.until-sleep;
+                        text: "Fim do dia em " + Api.day.day-left;
                     }
                 }
             }

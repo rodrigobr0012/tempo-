@@ -1,11 +1,13 @@
 //! Tipos expostos pelo serviço para a interface.
 
 use chrono::NaiveDate;
-use tempo_core::{Permille, Progress, SleepSchedule};
+use tempo_core::reserved::DEFAULT_DAY_START;
+use tempo_core::{ClockTime, Permille, Progress};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settings {
-    pub schedule: SleepSchedule,
+    /// RN25: horário em que o dia lógico começa (e termina).
+    pub day_start: ClockTime,
     /// RF21: depois de zerar, o timer continua contando como excedente.
     pub overtime: bool,
     pub sound: bool,
@@ -18,7 +20,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            schedule: SleepSchedule::default(),
+            day_start: ClockTime::new(DEFAULT_DAY_START.0, DEFAULT_DAY_START.1).expect("válido"),
             overtime: true,
             sound: true,
             vibration: true,
@@ -44,6 +46,21 @@ pub struct NewTag {
     pub name: String,
     pub color: u32,
     pub permille: Permille,
+}
+
+/// Bloco de tempo reservado (ex.: "Sono 8h"), descontado das 24h (RF01).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Reserved {
+    pub id: i64,
+    pub name: String,
+    pub duration: i64,
+    pub position: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NewReserved {
+    pub name: String,
+    pub duration: i64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,10 +138,10 @@ pub struct TodayView {
     pub day_end: i64,
     /// TD do dia (snapshot).
     pub available: i64,
-    /// Tempo desde o horário de acordar.
-    pub awake_elapsed: i64,
-    /// Tempo até o horário de dormir (início + TD), mínimo 0.
-    pub awake_remaining: i64,
+    /// Tempo desde o início do dia lógico.
+    pub day_elapsed: i64,
+    /// Tempo até o fim do dia lógico.
+    pub day_remaining: i64,
     pub tags: Vec<TagToday>,
     pub allocated_permille: Permille,
     pub unallocated_permille: Permille,
@@ -132,7 +149,7 @@ pub struct TodayView {
     pub active: Option<ActiveTimer>,
     /// Tag pausada/selecionada no cartão principal.
     pub focus_tag: Option<i64>,
-    /// RF27: a soma dos restantes não cabe mais no tempo acordado que sobra.
+    /// RF27: a soma dos restantes não cabe mais no que sobra do dia.
     pub overcommitted: bool,
     /// RN24: o relógio do aparelho voltou e a sessão foi encerrada.
     pub clock_warning: bool,

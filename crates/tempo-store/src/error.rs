@@ -12,6 +12,9 @@ pub enum Error {
     #[error("Tag não encontrada.")]
     TagNotFound,
 
+    #[error("Bloco reservado não encontrado.")]
+    ReservedNotFound,
+
     #[error("Sessão não encontrada.")]
     SessionNotFound,
 
@@ -21,7 +24,7 @@ pub enum Error {
     #[error("Só é possível apagar sessões do dia atual.")]
     SessionNotToday,
 
-    #[error("Configure o sono antes de continuar.")]
+    #[error("Conclua a configuração inicial antes de continuar.")]
     NotOnboarded,
 
     #[error("O tempo de \"{0}\" acabou hoje. Ative o excedente nos ajustes para continuar.")]

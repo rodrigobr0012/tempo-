@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use chrono::{NaiveDate, NaiveDateTime};
-use tempo_core::{Clock, ClockTime, CoreError, ManualClock, Permille, SleepSchedule};
-use tempo_store::{Error, NewTag, Tempo};
+use tempo_core::{Clock, ClockTime, CoreError, ManualClock, Permille};
+use tempo_store::{Error, NewReserved, NewTag, Tempo};
 
 const BRT: i64 = -3 * 3600;
 const H: i64 = 3600;
@@ -22,12 +22,21 @@ fn tag(name: &str, permille: u16) -> NewTag {
     NewTag { name: name.into(), color: 0x3B82F6, permille: Permille::new(permille).unwrap() }
 }
 
-/// App configurado com sono 23:00 → 07:00, às 09:00 de 09/11/2026.
+fn block(name: &str, hours: i64) -> NewReserved {
+    NewReserved { name: name.into(), duration: hours * H }
+}
+
+/// App com o bloco sugerido "Sono 8h" e dia começando às 07:00, às 09:00 de 09/11/2026.
 fn setup(tags: &[NewTag]) -> (Tempo, Arc<ManualClock>) {
     let clock = Arc::new(ManualClock::at_local(local(2026, 11, 9, 9, 0), BRT));
     let mut app = Tempo::open_in_memory(clock.clone()).unwrap();
-    app.complete_onboarding(SleepSchedule::new(t(23, 0), t(7, 0)).unwrap(), tags).unwrap();
+    app.prepare_onboarding().unwrap();
+    app.complete_onboarding(t(7, 0), tags).unwrap();
     (app, clock)
+}
+
+fn reserved_id(app: &Tempo, name: &str) -> i64 {
+    app.reserved().unwrap().into_iter().find(|r| r.name == name).unwrap().id
 }
 
 fn id_of(app: &Tempo, name: &str) -> i64 {
@@ -46,8 +55,8 @@ fn calculo_basico_16h_e_10_por_cento() {
     let v = app.today().unwrap();
     assert_eq!(v.available, 16 * H);
     assert_eq!(v.date, NaiveDate::from_ymd_opt(2026, 11, 9).unwrap());
-    assert_eq!(v.awake_elapsed, 2 * H);
-    assert_eq!(v.awake_remaining, 14 * H);
+    assert_eq!(v.day_elapsed, 2 * H);
+    assert_eq!(v.day_remaining, 22 * H);
     assert_eq!(v.tags[0].allocated, H + 36 * M);
     assert_eq!(v.unallocated_permille.value(), 900);
     assert_eq!(v.unallocated_secs, 16 * H - (H + 36 * M));
@@ -75,7 +84,7 @@ fn limite_de_100_por_cento() {
 fn nomes_unicos_sem_caixa_nem_acento() {
     let (mut app, _) = setup(&[tag("Exercício", 50)]);
     let err = app.create_tag(&tag("  exercicio ", 50)).unwrap_err();
-    assert!(matches!(err, Error::Rule(CoreError::TagNameDuplicate(_))));
+    assert!(matches!(err, Error::Rule(CoreError::NameDuplicate(_))));
 }
 
 #[test]
@@ -133,7 +142,8 @@ fn sobrevive_ao_encerramento_do_processo() {
     let clock = Arc::new(ManualClock::at_local(local(2026, 11, 9, 9, 0), BRT));
     let id = {
         let mut app = Tempo::open(&path, clock.clone()).unwrap();
-        app.complete_onboarding(SleepSchedule::default(), &[tag("Estudo", 100)]).unwrap();
+        app.prepare_onboarding().unwrap();
+        app.complete_onboarding(t(7, 0), &[tag("Estudo", 100)]).unwrap();
         let id = id_of(&app, "Estudo");
         app.start(id).unwrap();
         clock.advance(10 * M);
@@ -192,9 +202,10 @@ fn desligar_excedente_durante_excedente_encerra_agora() {
 }
 
 #[test]
-fn mudanca_de_sono_vale_no_dia_seguinte() {
+fn mudanca_no_tempo_reservado_vale_no_dia_seguinte() {
     let (mut app, clock) = setup(&[tag("Estudo", 100)]);
-    app.set_schedule(SleepSchedule::new(t(0, 0), t(7, 0)).unwrap()).unwrap(); // 7h
+    let sono = reserved_id(&app, "Sono");
+    app.update_reserved(sono, &block("Sono", 7)).unwrap();
     app.tick().unwrap();
     assert_eq!(app.today().unwrap().available, 16 * H);
     clock.set(clock.now() + 23 * H); // 10/11 08:00
@@ -431,6 +442,9 @@ fn apagar_tudo_volta_ao_onboarding() {
     assert!(app.tags(true).unwrap().is_empty());
     assert!(matches!(app.today(), Err(Error::NotOnboarded)));
     assert!(!app.tick().unwrap().changed());
+    assert!(app.reserved().unwrap().is_empty());
+    app.prepare_onboarding().unwrap(); // volta a sugerir "Sono 8h"
+    assert_eq!(app.reserved_total().unwrap(), 8 * H);
 }
 
 #[test]
@@ -438,16 +452,83 @@ fn excesso_de_compromisso_no_fim_do_dia() {
     let (mut app, clock) = setup(&[tag("Trabalho", 800)]); // 12h48
     app.tick().unwrap();
     assert!(!app.today().unwrap().overcommitted);
-    clock.advance(5 * H); // 14:00 — restam 9h acordado, 12h48 por fazer
+    clock.advance(11 * H); // 20:00 — restam 11h até o fim do dia, 12h48 por fazer
     app.tick().unwrap();
     assert!(app.today().unwrap().overcommitted);
 }
 
 #[test]
-fn madrugada_antes_de_acordar_pertence_ao_dia_anterior() {
+fn madrugada_antes_do_inicio_pertence_ao_dia_anterior() {
     let clock = Arc::new(ManualClock::at_local(local(2026, 11, 10, 2, 0), BRT));
     let mut app = Tempo::open_in_memory(clock.clone()).unwrap();
-    app.complete_onboarding(SleepSchedule::default(), &[]).unwrap();
+    app.prepare_onboarding().unwrap();
+    let start = app.settings().unwrap().day_start; // padrão 04:00
+    assert_eq!(start.to_string(), "04:00");
+    app.complete_onboarding(start, &[]).unwrap();
     assert_eq!(app.today().unwrap().date, NaiveDate::from_ymd_opt(2026, 11, 9).unwrap());
-    assert_eq!(app.today().unwrap().awake_remaining, 0);
+    assert_eq!(app.today().unwrap().day_remaining, 2 * H);
+}
+
+#[test]
+fn blocos_reservados_definem_o_tempo_disponivel() {
+    let (mut app, clock) = setup(&[tag("Estudo", 100)]);
+    app.create_reserved(&block("Faculdade", 4)).unwrap();
+    assert_eq!(app.reserved_total().unwrap(), 12 * H);
+    assert_eq!(app.today().unwrap().available, 16 * H); // hoje não muda (RN16)
+    clock.advance(24 * H);
+    app.tick().unwrap();
+    let v = app.today().unwrap();
+    assert_eq!(v.available, 12 * H);
+    assert_eq!(v.tags[0].allocated, H + 12 * M); // 10% de 12h
+    let names: Vec<_> = app.reserved().unwrap().into_iter().map(|r| r.name).collect();
+    assert_eq!(names, ["Sono", "Faculdade"]);
+}
+
+#[test]
+fn crud_de_blocos_reservados() {
+    let (mut app, _) = setup(&[]);
+    // Nome único, sem diferenciar caixa e acento
+    let err = app.create_reserved(&block("  sono ", 1)).unwrap_err();
+    assert!(matches!(err, Error::Rule(CoreError::NameDuplicate(_))));
+    // Duração zero
+    let err = app.create_reserved(&NewReserved { name: "X".into(), duration: 0 }).unwrap_err();
+    assert!(matches!(err, Error::Rule(CoreError::DurationZero)));
+    // Limite de 23h reservadas (8h + 15h ok, +1min não)
+    let id = app.create_reserved(&block("Trabalho fixo", 15)).unwrap();
+    let err = app.create_reserved(&NewReserved { name: "Y".into(), duration: 60 }).unwrap_err();
+    assert_eq!(err.to_string(), "Os blocos reservados podem somar no máximo 23h. Restam apenas 0min para reservar.");
+    // Editar considera os outros blocos
+    app.update_reserved(id, &block("Trabalho", 10)).unwrap();
+    assert_eq!(app.reserved_total().unwrap(), 18 * H);
+    assert!(app.update_reserved(id, &block("Trabalho", 16)).is_err());
+    // Excluir
+    app.delete_reserved(id).unwrap();
+    assert_eq!(app.reserved_total().unwrap(), 8 * H);
+    assert!(matches!(app.delete_reserved(id), Err(Error::ReservedNotFound)));
+    // Sem nenhum bloco, o dia inteiro fica disponível
+    app.delete_reserved(reserved_id(&app, "Sono")).unwrap();
+    assert_eq!(app.current_available().unwrap(), 16 * H); // dia atual mantém o snapshot
+    assert_eq!(app.reserved_total().unwrap(), 0);
+}
+
+#[test]
+fn converte_sono_da_versao_anterior() {
+    let path = std::env::temp_dir().join(format!("tempo-legacy-{}.db", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+    let clock = Arc::new(ManualClock::at_local(local(2026, 11, 9, 9, 0), BRT));
+    drop(Tempo::open(&path, clock.clone()).unwrap());
+    {
+        let c = rusqlite::Connection::open(&path).unwrap();
+        c.execute_batch("INSERT INTO settings VALUES ('bedtime', '23:30'), ('wake', '06:30'), ('onboarded', '1');")
+            .unwrap();
+    }
+    let app = Tempo::open(&path, clock).unwrap();
+    let r = app.reserved().unwrap();
+    assert_eq!(r.len(), 1);
+    assert_eq!((r[0].name.as_str(), r[0].duration), ("Sono", 7 * H));
+    assert_eq!(app.settings().unwrap().day_start.to_string(), "06:30");
+    drop(app);
+    for ext in ["", "-wal", "-shm"] {
+        let _ = std::fs::remove_file(format!("{}{ext}", path.display()));
+    }
 }

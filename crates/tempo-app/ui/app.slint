@@ -7,10 +7,10 @@ import { PlanPage } from "plan.slint";
 import { HistoryPage } from "history.slint";
 import { SettingsPage } from "settings.slint";
 import { Onboarding } from "onboarding.slint";
-import { TagEditorDialog, ManualDialog, SessionsDialog, ConfirmDialog } from "dialogs.slint";
+import { TagEditorDialog, ManualDialog, SessionsDialog, ConfirmDialog, ReservedDialog } from "dialogs.slint";
 
 export { Api, Dlg }
-export { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryTag, HistoryDay, StatItem, Suggestion } from "types.slint";
+export { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryTag, HistoryDay, StatItem, Suggestion, ReservedItem } from "types.slint";
 
 component NavItem inherits Rectangle {
     in property <string> icon;
@@ -179,6 +179,14 @@ export component AppWindow inherits Window {
             avail-height: root.keyboard-top;
         }
         if Dlg.kind == 3: SessionsDialog {
+            x: 0;
+            y: 0;
+            width: root.width;
+            height: root.height;
+            top-inset: root.inset-top;
+            avail-height: root.keyboard-top;
+        }
+        if Dlg.kind == 5: ReservedDialog {
             x: 0;
             y: 0;
             width: root.width;

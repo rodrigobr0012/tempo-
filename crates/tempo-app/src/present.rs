@@ -7,7 +7,7 @@ use tempo_core::stats::TagStats;
 use tempo_core::{Clock, Permille, Progress};
 use tempo_store::{DaySummary, SessionView, StatsView, TagToday, TodayView};
 
-use crate::{DayInfo, HeroItem, HistoryDay, HistoryTag, Segment, SessionItem, StatItem, TagItem};
+use crate::{DayInfo, HeroItem, HistoryDay, HistoryTag, ReservedItem, Segment, SessionItem, StatItem, TagItem};
 
 const WEEKDAYS: [&str; 7] =
     ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"];
@@ -104,6 +104,15 @@ pub fn plan_item(id: i64, name: &str, c: u32, p: Permille, available: i64) -> Ta
     }
 }
 
+pub fn reserved_item(r: &tempo_store::Reserved) -> ReservedItem {
+    ReservedItem {
+        id: r.id as i32,
+        name: r.name.as_str().into(),
+        minutes: (r.duration / 60) as i32,
+        duration: short(r.duration).into(),
+    }
+}
+
 pub fn segments(v: &TodayView) -> Vec<Segment> {
     let mut offset = 0.0f32;
     v.tags
@@ -121,15 +130,15 @@ pub fn day_info(v: &TodayView) -> DayInfo {
     DayInfo {
         title: day_title(v.date).into(),
         available: hm(v.available).into(),
-        elapsed: short(v.awake_elapsed).into(),
-        until_sleep: short(v.awake_remaining).into(),
+        elapsed: short(v.day_elapsed).into(),
+        day_left: short(v.day_remaining).into(),
         allocated_percent: v.allocated_permille.to_string().into(),
         unallocated: format!("{} · {}", v.unallocated_permille, short(v.unallocated_secs)).into(),
         overcommitted: v.overcommitted,
         overcommit_text: format!(
-            "Faltam {} nas tags e restam {} até a hora de dormir.",
+            "Faltam {} nas tags e restam {} até o fim do dia.",
             short(v.total_remaining()),
-            short(v.awake_remaining)
+            short(v.day_remaining)
         )
         .into(),
         clock_warning: v.clock_warning,

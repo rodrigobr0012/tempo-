@@ -31,12 +31,19 @@ export struct DayInfo {
     title: string,
     available: string,
     elapsed: string,
-    until-sleep: string,
+    day-left: string,
     allocated-percent: string,
     unallocated: string,
     overcommitted: bool,
     overcommit-text: string,
     clock-warning: bool,
+}
+
+export struct ReservedItem {
+    id: int,
+    name: string,
+    minutes: int,
+    duration: string,
 }
 
 export struct Segment {

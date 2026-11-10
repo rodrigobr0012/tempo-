@@ -1,14 +1,13 @@
-// Primeira execução (RF04, RF14): sono → tags sugeridas → começar.
+// Primeira execução (RF04, RF14): tempo reservado e início do dia → tags sugeridas → começar.
 import { Theme, Icons } from "theme.slint";
 import { Api } from "api.slint";
 import { Icon, Btn, Card, Muted, Title, Stepper } from "widgets.slint";
+import { ReservedList } from "reserved.slint";
 
 export component Onboarding inherits Rectangle {
     in property <length> bottom-inset;
     property <int> step: 0;
-    property <int> bed: 23 * 60;
-    property <int> wake: 7 * 60;
-    property <string> warning: Api.sleep-warning(root.bed, root.wake);
+    property <int> day-start: 4 * 60;
 
     background: Theme.bg;
 
@@ -30,55 +29,41 @@ export component Onboarding inherits Rectangle {
             if root.step == 0: VerticalLayout {
                 spacing: 16px;
                 Title {
-                    text: "Quanto tempo você tem?";
+                    text: "Quanto tempo você reserva?";
                     wrap: word-wrap;
                 }
                 Muted {
-                    text: "O dia não tem 24 horas úteis. Descontado o sono, sobra o seu tempo disponível — e é ele que você vai dividir em porcentagens.";
+                    text: "Crie blocos para o tempo que não entra no planejamento: sono, faculdade, deslocamento… O que sobrar das 24h é o seu tempo disponível, dividido depois em porcentagens.";
                     font-size: 15px;
                 }
-                Card {
-                    Muted {
-                        text: "Vou dormir às";
-                    }
-                    Stepper {
-                        display: Api.clock-text(root.bed);
-                        small: 15;
-                        small-label: "15";
-                        step(d) => {
-                            root.bed = Api.wrap-minutes(root.bed + d);
-                        }
-                    }
-                    Muted {
-                        text: "Acordo às";
-                    }
-                    Stepper {
-                        display: Api.clock-text(root.wake);
-                        small: 15;
-                        small-label: "15";
-                        step(d) => {
-                            root.wake = Api.wrap-minutes(root.wake + d);
-                        }
-                    }
-                }
+                ReservedList { }
                 Text {
-                    text: Api.sleep-summary(root.bed, root.wake);
+                    text: Api.reserved-summary;
                     color: Theme.text;
                     font-size: 18px;
                     font-weight: 700;
                     horizontal-alignment: center;
                     wrap: word-wrap;
                 }
-                if root.warning != "": Text {
-                    text: root.warning;
-                    color: Api.sleep-valid(root.bed, root.wake) ? Theme.warn-text : Theme.danger;
-                    font-size: 14px;
-                    horizontal-alignment: center;
-                    wrap: word-wrap;
+                Card {
+                    Muted {
+                        text: "Meu dia começa às";
+                    }
+                    Stepper {
+                        display: Api.clock-text(root.day-start);
+                        small: 15;
+                        small-label: "15";
+                        step(d) => {
+                            root.day-start = Api.wrap-minutes(root.day-start + d);
+                        }
+                    }
+                    Muted {
+                        text: "Nesse horário os timers zeram e um novo dia começa.";
+                        horizontal-alignment: center;
+                    }
                 }
                 Btn {
                     text: "Continuar";
-                    enabled: Api.sleep-valid(root.bed, root.wake);
                     clicked => {
                         root.step = 1;
                     }
@@ -157,7 +142,7 @@ export component Onboarding inherits Rectangle {
                         text: "Começar";
                         horizontal-stretch: 1;
                         clicked => {
-                            Api.finish-onboarding(root.bed, root.wake);
+                            Api.finish-onboarding(root.day-start);
                         }
                     }
                 }

@@ -292,3 +292,59 @@ export component ConfirmDialog inherits Sheet {
         }
     }
 }
+
+// Bloco reservado (RF01–RF03): nome + duração.
+export component ReservedDialog inherits Sheet {
+    property <bool> valid: Dlg.reserved-name != "" && Api.reserved-valid(Dlg.reserved-id, Dlg.reserved-minutes);
+
+    title: Dlg.reserved-id < 0 ? "Novo bloco reservado" : "Editar bloco reservado";
+    dismiss => {
+        Dlg.kind = 0;
+    }
+
+    LineEdit {
+        text <=> Dlg.reserved-name;
+        placeholder-text: "Nome (ex.: Sono, Faculdade)";
+        input-type: text;
+    }
+    Muted {
+        text: "Duração por dia";
+    }
+    Stepper {
+        display: Api.minutes-text(Dlg.reserved-minutes);
+        small: 15;
+        small-label: "15";
+        step(d) => {
+            Dlg.reserved-minutes = clamp(Dlg.reserved-minutes + d, 15, 23 * 60);
+        }
+    }
+    Text {
+        text: Api.reserved-preview(Dlg.reserved-id, Dlg.reserved-minutes);
+        color: Api.reserved-valid(Dlg.reserved-id, Dlg.reserved-minutes) ? Theme.text : Theme.danger;
+        font-size: 15px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        wrap: word-wrap;
+    }
+    Btn {
+        text: "Salvar";
+        enabled: root.valid;
+        clicked => {
+            if (Api.save-reserved(Dlg.reserved-id, Dlg.reserved-name, Dlg.reserved-minutes)) {
+                Dlg.kind = 0;
+            }
+        }
+    }
+    if Dlg.reserved-id >= 0: Btn {
+        text: "Excluir";
+        icon: Icons.delete;
+        kind: 3;
+        clicked => {
+            Dlg.confirm-title = "Excluir \"" + Dlg.reserved-name + "\"?";
+            Dlg.confirm-text = "O tempo deste bloco volta a ficar disponível a partir do próximo dia.";
+            Dlg.confirm-button = "Excluir";
+            Dlg.confirm-action = "delete-reserved:" + Dlg.reserved-id;
+            Dlg.kind = 4;
+        }
+    }
+}

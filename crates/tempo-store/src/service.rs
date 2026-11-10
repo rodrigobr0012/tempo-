@@ -9,10 +9,11 @@ use std::time::Duration;
 use chrono::{Datelike, NaiveDate};
 use rusqlite::{params, Connection, OptionalExtension, Row, Transaction};
 use tempo_core::day::{day_bounds_containing, day_bounds_for_date};
+use tempo_core::reserved::{check_reserved, DEFAULT_RESERVED, MAX_RESERVED_BLOCKS};
 use tempo_core::stats::{aggregate, DayTagRecord};
 use tempo_core::tags::{check_allocation, name_key, normalize_name, total, unallocated, MAX_ACTIVE_TAGS};
 use tempo_core::timer::{deadline, Progress};
-use tempo_core::{allocated_secs, format, Clock, ClockTime, CoreError, Permille, SleepSchedule};
+use tempo_core::{allocated_secs, available_secs, format, Clock, ClockTime, CoreError, Permille};
 
 use crate::error::{Error, Result};
 use crate::model::*;
@@ -26,8 +27,10 @@ const LAST_SEEN_WRITE_EVERY: i64 = 30;
 const MAX_GAP_DAYS: i64 = 400;
 
 mod key {
-    pub const BEDTIME: &str = "bedtime";
-    pub const WAKE: &str = "wake";
+    pub const DAY_START: &str = "day_start";
+    // Versão 0.1 guardava dormir/acordar; convertidos em bloco "Sono" na abertura.
+    pub const LEGACY_BEDTIME: &str = "bedtime";
+    pub const LEGACY_WAKE: &str = "wake";
     pub const OVERTIME: &str = "overtime";
     pub const SOUND: &str = "sound";
     pub const VIBRATION: &str = "vibration";
@@ -74,6 +77,7 @@ impl Tempo {
         conn.pragma_update(None, "foreign_keys", true)?;
         let _mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))?;
         schema::migrate(&mut conn)?;
+        convert_legacy_sleep(&mut conn, clock.now())?;
         Ok(Self { conn, clock })
     }
 
@@ -91,11 +95,24 @@ impl Tempo {
         read_settings(&self.conn)
     }
 
-    /// Primeira execução (RF04, RF14): grava o sono, cria as tags escolhidas e abre o dia.
-    pub fn complete_onboarding(&mut self, schedule: SleepSchedule, tags: &[NewTag]) -> Result<()> {
+    /// Antes da primeira execução: sugere o bloco "Sono 8h" se ainda não há nenhum (RF04).
+    pub fn prepare_onboarding(&mut self) -> Result<()> {
+        if self.settings()?.onboarded || !self.reserved()?.is_empty() {
+            return Ok(());
+        }
+        let now = self.now();
+        for (name, duration) in DEFAULT_RESERVED {
+            insert_reserved(&self.conn, &NewReserved { name: name.into(), duration }, now)?;
+        }
+        Ok(())
+    }
+
+    /// Primeira execução (RF04, RF14): grava o início do dia, cria as tags escolhidas e abre o dia.
+    /// Os blocos reservados já foram gravados pelo CRUD.
+    pub fn complete_onboarding(&mut self, day_start: ClockTime, tags: &[NewTag]) -> Result<()> {
         let now = self.now();
         let tx = self.conn.transaction()?;
-        write_schedule(&tx, schedule)?;
+        set_kv(&tx, key::DAY_START, &day_start.to_string())?;
         for t in tags {
             insert_tag(&tx, t, now)?;
         }
@@ -105,9 +122,49 @@ impl Tempo {
         Ok(())
     }
 
-    /// RN16: o novo sono vale a partir do próximo dia lógico.
-    pub fn set_schedule(&mut self, schedule: SleepSchedule) -> Result<()> {
-        write_schedule(&self.conn, schedule)
+    /// RN16: o novo início vale a partir do próximo dia lógico.
+    pub fn set_day_start(&mut self, day_start: ClockTime) -> Result<()> {
+        set_kv(&self.conn, key::DAY_START, &day_start.to_string())
+    }
+
+    // ------------------------------------------------------------------ tempo reservado
+
+    /// Blocos reservados, na ordem do usuário (RF01).
+    pub fn reserved(&self) -> Result<Vec<Reserved>> {
+        let mut st = self.conn.prepare("SELECT id, name, duration_secs, position FROM reserved ORDER BY position")?;
+        let rows = st.query_map([], |r| {
+            Ok(Reserved { id: r.get(0)?, name: r.get(1)?, duration: r.get(2)?, position: r.get(3)? })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Soma dos blocos reservados.
+    pub fn reserved_total(&self) -> Result<i64> {
+        reserved_total(&self.conn, None)
+    }
+
+    /// RF02/RN16: vale a partir do próximo dia lógico (o dia atual mantém o seu TD).
+    pub fn create_reserved(&mut self, new: &NewReserved) -> Result<i64> {
+        insert_reserved(&self.conn, new, self.now())
+    }
+
+    pub fn update_reserved(&mut self, id: i64, new: &NewReserved) -> Result<()> {
+        let name = normalize_name(&new.name)?;
+        let key = name_key(&name);
+        get_reserved(&self.conn, id)?;
+        ensure_unique_reserved(&self.conn, &key, &name, Some(id))?;
+        check_reserved(reserved_total(&self.conn, Some(id))?, new.duration)?;
+        self.conn.execute(
+            "UPDATE reserved SET name = ?1, name_key = ?2, duration_secs = ?3 WHERE id = ?4",
+            params![name, key, new.duration, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_reserved(&mut self, id: i64) -> Result<()> {
+        get_reserved(&self.conn, id)?;
+        self.conn.execute("DELETE FROM reserved WHERE id = ?1", [id])?;
+        Ok(())
     }
 
     pub fn set_overtime(&mut self, on: bool) -> Result<()> {
@@ -156,7 +213,7 @@ impl Tempo {
         let tx = self.conn.transaction()?;
         tx.execute_batch(
             "DELETE FROM sessions; DELETE FROM day_allocations; DELETE FROM days;
-             DELETE FROM tags; DELETE FROM settings;",
+             DELETE FROM tags; DELETE FROM reserved; DELETE FROM settings;",
         )?;
         tx.commit()?;
         Ok(())
@@ -220,7 +277,7 @@ impl Tempo {
     pub fn current_available(&self) -> Result<i64> {
         match open_day(&self.conn)? {
             Some(d) => Ok(d.available),
-            None => Ok(self.settings()?.schedule.available_secs()),
+            None => Ok(available_secs(reserved_total(&self.conn, None)?)),
         }
     }
 
@@ -540,15 +597,14 @@ impl Tempo {
 
         let allocated_permille = total(tags.iter().map(|t| t.permille));
         let allocated_sum: i64 = tags.iter().map(|t| t.allocated).sum();
-        let awake_end = day.start + day.available;
         let mut view = TodayView {
             date: day.date,
             now,
             day_start: day.start,
             day_end: day.end,
             available: day.available,
-            awake_elapsed: (now - day.start).max(0),
-            awake_remaining: (awake_end - now).max(0),
+            day_elapsed: (now - day.start).max(0),
+            day_remaining: (day.end - now).max(0),
             unallocated_permille: unallocated(allocated_permille),
             unallocated_secs: (day.available - allocated_sum).max(0),
             allocated_permille,
@@ -558,7 +614,7 @@ impl Tempo {
             overcommitted: false,
             clock_warning: get_kv(conn, key::CLOCK_WARNING)?.is_some(),
         };
-        view.overcommitted = view.total_remaining() > view.awake_remaining;
+        view.overcommitted = view.total_remaining() > view.day_remaining;
         Ok(view)
     }
 
@@ -728,15 +784,10 @@ fn get_bool(conn: &Connection, k: &str, default: bool) -> Result<bool> {
 
 fn read_settings(conn: &Connection) -> Result<Settings> {
     let d = Settings::default();
-    let bed = get_kv(conn, key::BEDTIME)?.and_then(|v| v.parse::<ClockTime>().ok());
-    let wake = get_kv(conn, key::WAKE)?.and_then(|v| v.parse::<ClockTime>().ok());
-    let schedule = match (bed, wake) {
-        (Some(b), Some(w)) => SleepSchedule::new(b, w).unwrap_or(d.schedule),
-        _ => d.schedule,
-    };
+    let day_start = get_kv(conn, key::DAY_START)?.and_then(|v| v.parse::<ClockTime>().ok()).unwrap_or(d.day_start);
     let retention = get_kv(conn, key::RETENTION)?.and_then(|v| v.parse::<u32>().ok()).filter(|&v| v > 0);
     Ok(Settings {
-        schedule,
+        day_start,
         overtime: get_bool(conn, key::OVERTIME, d.overtime)?,
         sound: get_bool(conn, key::SOUND, d.sound)?,
         vibration: get_bool(conn, key::VIBRATION, d.vibration)?,
@@ -745,9 +796,70 @@ fn read_settings(conn: &Connection) -> Result<Settings> {
     })
 }
 
-fn write_schedule(conn: &Connection, s: SleepSchedule) -> Result<()> {
-    set_kv(conn, key::BEDTIME, &s.bedtime().to_string())?;
-    set_kv(conn, key::WAKE, &s.wake().to_string())
+/// Converte o par dormir/acordar da versão 0.1 em um bloco "Sono" e no início do dia.
+fn convert_legacy_sleep(conn: &mut Connection, now: i64) -> Result<()> {
+    let bed = get_kv(conn, key::LEGACY_BEDTIME)?.and_then(|v| v.parse::<ClockTime>().ok());
+    let wake = get_kv(conn, key::LEGACY_WAKE)?.and_then(|v| v.parse::<ClockTime>().ok());
+    let (Some(bed), Some(wake)) = (bed, wake) else { return Ok(()) };
+    let tx = conn.transaction()?;
+    let (b, w) = (i64::from(bed.minutes()), i64::from(wake.minutes()));
+    let minutes = if w > b { w - b } else { 24 * 60 - b + w };
+    if reserved_total(&tx, None)? == 0 && minutes > 0 {
+        insert_reserved(&tx, &NewReserved { name: "Sono".into(), duration: minutes * 60 }, now)?;
+    }
+    if get_kv(&tx, key::DAY_START)?.is_none() {
+        set_kv(&tx, key::DAY_START, &wake.to_string())?;
+    }
+    del_kv(&tx, key::LEGACY_BEDTIME)?;
+    del_kv(&tx, key::LEGACY_WAKE)?;
+    tx.commit()?;
+    Ok(())
+}
+
+fn reserved_total(conn: &Connection, except: Option<i64>) -> Result<i64> {
+    Ok(conn.query_row(
+        "SELECT COALESCE(SUM(duration_secs), 0) FROM reserved WHERE id != ?1",
+        [except.unwrap_or(-1)],
+        |r| r.get(0),
+    )?)
+}
+
+fn get_reserved(conn: &Connection, id: i64) -> Result<()> {
+    let exists: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM reserved WHERE id = ?1)", [id], |r| r.get(0))?;
+    if exists {
+        Ok(())
+    } else {
+        Err(Error::ReservedNotFound)
+    }
+}
+
+fn ensure_unique_reserved(conn: &Connection, key: &str, name: &str, except: Option<i64>) -> Result<()> {
+    let exists: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM reserved WHERE name_key = ?1 AND id != ?2)",
+        params![key, except.unwrap_or(-1)],
+        |r| r.get(0),
+    )?;
+    if exists {
+        return Err(CoreError::NameDuplicate(name.to_string()).into());
+    }
+    Ok(())
+}
+
+fn insert_reserved(conn: &Connection, new: &NewReserved, now: i64) -> Result<i64> {
+    let name = normalize_name(&new.name)?;
+    let key = name_key(&name);
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM reserved", [], |r| r.get(0))?;
+    if count as usize >= MAX_RESERVED_BLOCKS {
+        return Err(CoreError::TooManyReserved.into());
+    }
+    ensure_unique_reserved(conn, &key, &name, None)?;
+    check_reserved(reserved_total(conn, None)?, new.duration)?;
+    let pos: i64 = conn.query_row("SELECT COALESCE(MAX(position), 0) + 1 FROM reserved", [], |r| r.get(0))?;
+    conn.execute(
+        "INSERT INTO reserved (name, name_key, duration_secs, position, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![name, key, new.duration, pos, now],
+    )?;
+    Ok(conn.last_insert_rowid())
 }
 
 fn focus_tag(conn: &Connection) -> Result<Option<i64>> {
@@ -796,7 +908,7 @@ fn ensure_unique_name(conn: &Connection, key: &str, name: &str, except: Option<i
         |r| r.get(0),
     )?;
     if exists {
-        return Err(CoreError::TagNameDuplicate(name.to_string()).into());
+        return Err(CoreError::NameDuplicate(name.to_string()).into());
     }
     Ok(())
 }
@@ -878,14 +990,14 @@ fn sync_today_allocation(conn: &Connection, tag_id: i64) -> Result<()> {
 }
 
 fn create_day_containing(tx: &Transaction<'_>, clock: &dyn Clock, now: i64, s: &Settings) -> Result<DayRow> {
-    let b = day_bounds_containing(clock, now, s.schedule.wake());
+    let b = day_bounds_containing(clock, now, s.day_start);
     // A data precisa ser posterior a qualquer dia já registrado.
     let last: Option<i32> = tx.query_row("SELECT MAX(date) FROM days", [], |r| r.get(0))?;
     let date = match last {
         Some(l) if l >= date_to_db(b.date) => date_from_db(l + 1),
         _ => b.date,
     };
-    insert_day(tx, date, b.start, b.end, s.schedule.available_secs())
+    insert_day(tx, date, b.start, b.end, available_secs(reserved_total(tx, None)?))
 }
 
 fn close_day(tx: &Transaction<'_>, id: i64) -> Result<()> {
@@ -908,10 +1020,10 @@ fn roll_over(tx: &Transaction<'_>, clock: &dyn Clock, day: &DayRow, s: &Settings
     close_day(tx, day.id)?;
 
     let date = day.date.succ_opt().unwrap_or(day.date);
-    let bounds = day_bounds_for_date(clock, date, s.schedule.wake());
+    let bounds = day_bounds_for_date(clock, date, s.day_start);
     let start = day.end;
     let end = bounds.end.max(start + 3_600);
-    let next = insert_day(tx, date, start, end, s.schedule.available_secs())?;
+    let next = insert_day(tx, date, start, end, available_secs(reserved_total(tx, None)?))?;
 
     if let Some(a) = active {
         tx.execute(

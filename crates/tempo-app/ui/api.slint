@@ -1,6 +1,6 @@
 // Ponte entre a interface e o Rust. Propriedades `in` são preenchidas pelo Rust;
 // callbacks são tratados em `src/ui.rs`.
-import { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryDay, StatItem, Suggestion } from "types.slint";
+import { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryDay, StatItem, Suggestion, ReservedItem } from "types.slint";
 
 export global Api {
     // ---- geral
@@ -32,7 +32,7 @@ export global Api {
     in property <[TagItem]> plan-tags;
     in property <[TagItem]> archived-tags;
     in property <string> plan-available;
-    in property <string> plan-sleep;
+    in property <string> plan-reserved;
     in property <string> plan-allocated;
     in property <string> plan-unallocated;
     in property <bool> can-add-tag;
@@ -47,6 +47,13 @@ export global Api {
     pure callback permille-minutes(int) -> int;
     pure callback minutes-text(int) -> string;
 
+    // ---- Tempo reservado (CRUD)
+    in property <[ReservedItem]> reserved;
+    in property <string> reserved-summary;
+    callback save-reserved(int, string, int) -> bool;
+    pure callback reserved-preview(int, int) -> string;
+    pure callback reserved-valid(int, int) -> bool;
+
     // ---- Histórico
     in-out property <int> history-tab: 0;
     in property <[HistoryDay]> history;
@@ -55,15 +62,14 @@ export global Api {
     callback load-history(int);
 
     // ---- Ajustes
-    in-out property <int> set-bed;
-    in-out property <int> set-wake;
+    in-out property <int> set-day-start;
     in property <bool> overtime;
     in property <bool> sound;
     in property <bool> vibration;
     in property <int> retention-index;
     in property <bool> notif-granted;
     in property <bool> exact-granted;
-    callback save-schedule(int, int);
+    callback save-day-start(int);
     callback set-overtime(bool);
     callback set-sound(bool);
     callback set-vibration(bool);
@@ -74,14 +80,11 @@ export global Api {
 
     // ---- Formatação e validação (puras)
     pure callback clock-text(int) -> string;
-    pure callback sleep-summary(int, int) -> string;
-    pure callback sleep-warning(int, int) -> string;
-    pure callback sleep-valid(int, int) -> bool;
     pure callback wrap-minutes(int) -> int;
 
     // ---- Primeira execução
     in-out property <[Suggestion]> suggestions;
-    callback finish-onboarding(int, int);
+    callback finish-onboarding(int);
 
     // ---- Confirmações
     callback confirm-accepted(string);
@@ -89,7 +92,7 @@ export global Api {
 
 // Estado dos diálogos (sobrepostos à janela inteira).
 export global Dlg {
-    // 0 nenhum · 1 editor de tag · 2 lançamento manual · 3 sessões de hoje · 4 confirmação
+    // 0 nenhum · 1 editor de tag · 2 lançamento manual · 3 sessões de hoje · 4 confirmação · 5 bloco reservado
     in-out property <int> kind: 0;
 
     in-out property <int> editor-id: -1;
@@ -103,6 +106,10 @@ export global Dlg {
     in-out property <int> manual-tag;
     in-out property <int> manual-start;
     in-out property <int> manual-minutes: 30;
+
+    in-out property <int> reserved-id: -1;
+    in-out property <string> reserved-name;
+    in-out property <int> reserved-minutes;
 
     in-out property <string> confirm-title;
     in-out property <string> confirm-text;

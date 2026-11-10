@@ -1,0 +1,79 @@
+// Lista de blocos reservados com botão de adicionar (usada no Planejar e na primeira execução).
+import { Theme, Icons } from "theme.slint";
+import { Api, Dlg } from "api.slint";
+import { ReservedItem } from "types.slint";
+import { Icon, Btn, Muted } from "widgets.slint";
+
+component ReservedRow inherits Rectangle {
+    in property <ReservedItem> item;
+    background: ta.pressed ? Theme.surface-2 : Theme.surface;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.line;
+    accessible-role: button;
+    accessible-label: "Editar " + item.name + ", " + item.duration;
+
+    ta := TouchArea {
+        clicked => {
+            Dlg.reserved-id = item.id;
+            Dlg.reserved-name = item.name;
+            Dlg.reserved-minutes = item.minutes;
+            Dlg.kind = 5;
+        }
+    }
+
+    HorizontalLayout {
+        padding: 14px;
+        spacing: 12px;
+        Rectangle {
+            width: 6px;
+            border-radius: 3px;
+            background: Theme.text-2;
+        }
+        Text {
+            text: item.name;
+            color: Theme.text;
+            font-size: 16px;
+            font-weight: 600;
+            overflow: elide;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+        }
+        Text {
+            text: item.duration;
+            color: Theme.text-2;
+            font-size: 15px;
+            vertical-alignment: center;
+        }
+        VerticalLayout {
+            alignment: center;
+            Icon {
+                commands: Icons.edit;
+                tint: Theme.text-2;
+            }
+        }
+    }
+}
+
+export component ReservedList inherits VerticalLayout {
+    spacing: 10px;
+
+    if Api.reserved.length == 0: Muted {
+        text: "Nenhum bloco: as 24h inteiras ficam disponíveis para as tags.";
+        horizontal-alignment: center;
+    }
+    for r in Api.reserved: ReservedRow {
+        item: r;
+    }
+    Btn {
+        text: "Novo bloco reservado";
+        icon: Icons.add;
+        kind: 1;
+        clicked => {
+            Dlg.reserved-id = -1;
+            Dlg.reserved-name = "";
+            Dlg.reserved-minutes = 60;
+            Dlg.kind = 5;
+        }
+    }
+}
