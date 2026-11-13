@@ -1,0 +1,459 @@
+// Aba "Agora": cronômetro de uma atividade, desenhado como um copo que enche até a marca da meta.
+// Usa o mesmo timer da aba "Hoje"; aqui o tempo é mostrado subindo.
+import { ScrollView } from "std-widgets.slint";
+import { Theme, Icons } from "theme.slint";
+import { Api, Dlg } from "api.slint";
+import { TagItem, PourFrame } from "types.slint";
+import { Btn, Card, Muted, Title } from "widgets.slint";
+
+// Copo em um quadro de 320×260 unidades; a marca da meta fica a 80% da altura interna.
+component Glass inherits Rectangle {
+    in property <TagItem> item;
+    // Bico da torneira (embaixo da tag ativa), relativo ao centro e ao topo do copo.
+    in property <length> faucet-dx;
+    in property <length> faucet-dy;
+
+    // Unidades do desenho → pixels.
+    property <length> u: self.width / 320;
+    // Altura da marca e da superfície do líquido (em unidades; 246 = fundo, 12 = borda).
+    property <float> mark-y: 58.8;
+    property <float> level: root.item.fill;
+    animate level {
+        duration: 1s;
+        easing: linear;
+    }
+    property <float> surface: clamp(246 - root.level * 187.2, 12, 236);
+    property <color> mark-color: root.item.finished ? Theme.success : Theme.text;
+
+    // ---- Jato: a física fica no Rust (`src/pour.rs`, a mesma da versão web).
+    // Bico da torneira e ponto onde o jato bate (unidades do desenho).
+    property <float> fx: 160 + root.faucet-dx / root.u;
+    property <float> fy: root.faucet-dy / root.u;
+    property <float> ly: root.level > 0 ? root.surface : 244;
+    // Idades em segundos do jato, que cai em câmera lenta (metade da velocidade):
+    // `head` = há quanto tempo ligou; `tail` = há quanto tempo desligou (0 = ligado).
+    property <float> head: 0;
+    property <float> tail: 2;
+    property <bool> pouring: root.head > 0 && root.tail < 2;
+    states [
+        pouring when root.item.running: {
+            head: 2;
+            tail: 0;
+            in {
+                // Espera o tubo da torneira sair da tag (350ms) antes de soltar o líquido.
+                animate head {
+                    delay: 350ms;
+                    duration: 4s;
+                    easing: linear;
+                }
+            }
+            out {
+                animate tail {
+                    duration: 4s;
+                    easing: linear;
+                }
+                animate head {
+                    delay: 4s;
+                    duration: 0ms;
+                }
+            }
+        }
+    ]
+    property <float> time: Math.mod(animation-tick() / 1ms, 600000) / 2000;
+    property <PourFrame> jet: Api.pour(root.fx, root.fy, root.ly, root.level <= 0, root.head, root.tail, root.time);
+    // O desenho do jato começa acima do copo, na altura da torneira, e pode passar dos lados.
+    property <float> top: min(root.fy, 0) - 10;
+
+    height: self.width * 260 / 320;
+    accessible-role: progress-indicator;
+    accessible-label: root.item.name + ": " + root.item.elapsed + ". " + root.item.goal-caption;
+
+    // Interior do copo.
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 320;
+        viewbox-height: 260;
+        commands: "M87 12 L233 12 L212 238 Q211 246 203 246 L117 246 Q109 246 108 238 Z";
+        fill: Theme.surface-2.with-alpha(0.55);
+        stroke-width: 0px;
+    }
+
+    // Líquido: trapézio do fundo até a superfície, acompanhando a inclinação das paredes.
+    if root.level > 0: Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 320;
+        viewbox-height: 260;
+        fill: root.item.color.with-alpha(0.9);
+        stroke-width: 0px;
+        MoveTo {
+            x: 87 + (root.surface - 12) * 21 / 226;
+            y: root.surface;
+        }
+        LineTo {
+            x: 233 - (root.surface - 12) * 21 / 226;
+            y: root.surface;
+        }
+        LineTo {
+            x: 212;
+            y: 238;
+        }
+        QuadraticTo {
+            control-x: 211;
+            control-y: 246;
+            x: 203;
+            y: 246;
+        }
+        LineTo {
+            x: 117;
+            y: 246;
+        }
+        QuadraticTo {
+            control-x: 109;
+            control-y: 246;
+            x: 108;
+            y: 238;
+        }
+        Close { }
+    }
+
+    // Linha clara na superfície: deixa visível o nível subindo (o líquido fica parado).
+    if root.level > 0: Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 320;
+        viewbox-height: 260;
+        commands: "M \{88 + (root.surface - 12) * 21 / 226} \{root.surface} L \{232 - (root.surface - 12) * 21 / 226} \{root.surface}";
+        stroke: #ffffff59;
+        stroke-width: 1.5px;
+    }
+
+    // Jato, com as pontas arredondadas, um reflexo fino para dar volume, o monte que ele levanta
+    // onde bate e os respingos.
+    if root.pouring: Rectangle {
+        x: -160 * root.u;
+        y: root.top * root.u;
+        width: 640 * root.u;
+        height: (260 - root.top) * root.u;
+        for part in [root.jet.stream, root.jet.caps, root.jet.mound, root.jet.drops]: Path {
+            width: 100%;
+            height: 100%;
+            viewbox-x: -160;
+            viewbox-y: root.top;
+            viewbox-width: 640;
+            viewbox-height: 260 - root.top;
+            commands: part;
+            fill: root.item.color.with-alpha(0.92);
+            stroke-width: 0px;
+        }
+        Path {
+            width: 100%;
+            height: 100%;
+            viewbox-x: -160;
+            viewbox-y: root.top;
+            viewbox-width: 640;
+            viewbox-height: 260 - root.top;
+            commands: root.jet.shine;
+            stroke: #ffffff52;
+            stroke-width: max(1px, 1.2 * root.u);
+            stroke-line-cap: round;
+        }
+    }
+
+    // Vidro.
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 320;
+        viewbox-height: 260;
+        commands: "M86 6 L108 238 Q109 246 117 246 L203 246 Q211 246 212 238 L234 6";
+        fill: transparent;
+        stroke: Theme.text-2;
+        stroke-width: 4px;
+    }
+
+    // Marca da meta: tracejado por dentro, risco atravessando a parede e o valor ao lado.
+    if root.item.has-goal: Rectangle {
+        for i in 12: Rectangle {
+            x: (93 + i * 11.6) * root.u;
+            y: root.mark-y * root.u - 1px;
+            width: 6 * root.u;
+            height: 2px;
+            background: root.mark-color;
+            opacity: root.item.finished ? 1 : 0.55;
+        }
+        Rectangle {
+            x: 210 * root.u;
+            y: root.mark-y * root.u - 1.5px;
+            width: 38 * root.u;
+            height: 3px;
+            border-radius: 1.5px;
+            background: root.mark-color;
+        }
+        Text {
+            x: 254 * root.u;
+            y: root.mark-y * root.u - 22px;
+            text: "META";
+            color: root.item.finished ? Theme.success : Theme.text-2;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        Text {
+            x: 254 * root.u;
+            y: root.mark-y * root.u - 8px;
+            text: root.item.allocated;
+            color: Theme.text;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        Text {
+            x: 254 * root.u;
+            y: root.mark-y * root.u + 12px;
+            text: root.item.percent;
+            color: Theme.text-2;
+            font-size: 13px;
+            font-weight: 600;
+        }
+    }
+}
+
+component TagChip inherits Rectangle {
+    in property <TagItem> item;
+    // Coluna da esquerda: o tubo da torneira vira para a direita, na direção do copo.
+    in property <bool> left;
+    property <bool> active: Api.now-tag == item.id;
+    height: 40px;
+    border-radius: 20px;
+    border-width: 1px;
+    border-color: root.active ? Theme.accent : Theme.line;
+    background: root.active ? Theme.accent-soft : ta.pressed ? Theme.surface-2 : Theme.surface;
+    accessible-role: button;
+    accessible-label: item.name;
+    accessible-checkable: true;
+    accessible-checked: root.active;
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 8px;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: item.running ? 12px : 10px;
+                height: self.width;
+                border-radius: self.width / 2;
+                background: item.color;
+            }
+        }
+        Text {
+            text: item.name;
+            color: root.active ? Theme.text : Theme.text-2;
+            font-size: 14px;
+            font-weight: 600;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    // Com o cronômetro ligado, a tag vira a torneira: um tubo que desce e vira para o copo,
+    // com um anel na ponta, de onde sai o jato (quadro de 24×12px sob o meio da tag).
+    // O tubo sai de dentro da tag ao ligar e volta para dentro dela ao pausar.
+    property <float> spout: root.active && item.running ? 1 : 0;
+    animate spout {
+        duration: 350ms;
+        easing: ease-in-out;
+    }
+    if root.spout > 0: Rectangle {
+        x: (parent.width - 24px) / 2;
+        y: parent.height - 1px;
+        width: 24px;
+        height: 12px;
+        clip: true;
+        Rectangle {
+            property <float> d: root.left ? 1 : -1;
+            y: (root.spout - 1) * 12px;
+            height: 12px;
+            // Trecho que desce da tag (comprido para cima, para não abrir vão enquanto desliza).
+            Rectangle {
+                x: 8.5px;
+                y: -12px;
+                width: 7px;
+                height: 19px;
+                background: Theme.accent;
+            }
+            // Trecho deitado, com a curva arredondada por fora.
+            Rectangle {
+                x: d > 0 ? 8.5px : 1px;
+                y: 3.5px;
+                width: 14.5px;
+                height: 7px;
+                border-bottom-left-radius: d > 0 ? 6px : 0px;
+                border-bottom-right-radius: d > 0 ? 0px : 6px;
+                background: Theme.accent;
+            }
+            // Anel na ponta.
+            Rectangle {
+                x: d > 0 ? 20.5px : 0.5px;
+                y: 2px;
+                width: 3px;
+                height: 10px;
+                border-radius: 1.5px;
+                background: Theme.accent;
+            }
+        }
+    }
+
+    ta := TouchArea {
+        clicked => {
+            Api.select-now(item.id);
+        }
+    }
+}
+
+component NowCard inherits Rectangle {
+    in property <TagItem> item;
+    // Tag ativa (posição na grade de duas colunas acima do cartão) e total de tags.
+    in property <int> tag-index;
+    in property <int> tag-count;
+    // Geometria da grade de tags: chips de 40px, 12px entre linhas, 8px entre colunas, bico de 6px.
+    property <int> rows-below: floor((root.tag-count + 1) / 2) - 1 - floor(root.tag-index / 2);
+    background: Theme.surface;
+    border-radius: 24px;
+    border-width: 2px;
+    border-color: item.running ? item.color : Theme.line;
+
+    VerticalLayout {
+        padding: 20px;
+        // Margem lateral menor: os dois botões cabem lado a lado sem alargar a página.
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 10px;
+        HorizontalLayout {
+            alignment: center;
+            Glass {
+                width: 240px;
+                item: root.item;
+                // O copo fica centralizado no cartão, 20px abaixo da borda de cima.
+                // A ponta do tubo fica 11,5px para dentro do meio da tag e 6px abaixo dela.
+                faucet-dx: (Math.mod(root.tag-index, 2) == 0 ? -1 : 1) * ((root.width + 8px) / 4 - 11.5px);
+                faucet-dy: -(20px + 12px + root.rows-below * 52px) + 6px;
+            }
+        }
+        Text {
+            text: item.elapsed;
+            color: Theme.text;
+            font-size: 54px;
+            font-weight: 300;
+            horizontal-alignment: center;
+            accessible-role: text;
+            accessible-label: "Tempo cronometrado " + item.elapsed;
+        }
+        Text {
+            text: item.goal-caption;
+            color: item.finished ? Theme.success : Theme.text-2;
+            font-size: 14px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            alignment: center;
+            spacing: 10px;
+            Btn {
+                text: item.running ? "Pausar" : item.started ? "Continuar" : "Iniciar cronômetro";
+                icon: item.running ? Icons.pause : Icons.play;
+                clicked => {
+                    Api.toggle-tag(item.id);
+                }
+            }
+            if item.started: Btn {
+                text: "Apagar progresso";
+                icon: Icons.delete;
+                kind: 1;
+                clicked => {
+                    Dlg.confirm-title = "Apagar o progresso de \"" + item.name + "\"?";
+                    Dlg.confirm-text = "O tempo registrado hoje nesta atividade (" + item.elapsed + ") será apagado e o copo volta a ficar vazio. Isso não pode ser desfeito.";
+                    Dlg.confirm-button = "Apagar";
+                    Dlg.confirm-action = "clear-today:" + item.id;
+                    Dlg.kind = 4;
+                }
+            }
+        }
+        if Api.hero.running && Api.hero.tag-id != item.id: Muted {
+            text: "\"" + Api.hero.name + "\" está sendo cronometrada. Iniciar aqui pausa ela.";
+            horizontal-alignment: center;
+        }
+    }
+}
+
+export component NowPage inherits Rectangle {
+    background: Theme.bg;
+
+    ScrollView {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+            alignment: start;
+
+            VerticalLayout {
+                min-height: 48px;
+                alignment: center;
+                Title {
+                    text: "Agora";
+                }
+                Muted {
+                    text: "Cronometre uma atividade e encha o copo até a marca da meta.";
+                }
+            }
+
+            // Atividades do dia, duas por linha.
+            for row in (Api.today-tags.length + 1) / 2: HorizontalLayout {
+                spacing: 8px;
+                // Larguras iguais: o jato sai do meio da tag (ver `faucet-dx` no cartão).
+                TagChip {
+                    horizontal-stretch: 1;
+                    min-width: 0px;
+                    preferred-width: 0px;
+                    left: true;
+                    item: Api.today-tags[row * 2];
+                }
+                if row * 2 + 1 < Api.today-tags.length: TagChip {
+                    horizontal-stretch: 1;
+                    min-width: 0px;
+                    preferred-width: 0px;
+                    item: Api.today-tags[row * 2 + 1];
+                }
+                if row * 2 + 1 >= Api.today-tags.length: Rectangle {
+                    horizontal-stretch: 1;
+                }
+            }
+
+            if Api.today-tags.length > 0: NowCard {
+                item: Api.now;
+                tag-index: Api.now-index;
+                tag-count: Api.today-tags.length;
+            }
+
+            if Api.today-tags.length == 0: Card {
+                Text {
+                    text: "Nenhuma atividade planejada";
+                    color: Theme.text;
+                    font-size: 17px;
+                    font-weight: 600;
+                }
+                Muted {
+                    text: "Crie suas tags em Planejar para cronometrar o tempo de cada uma.";
+                }
+                Btn {
+                    text: "Planejar tags";
+                    icon: Icons.tune;
+                    clicked => {
+                        Api.navigate(1);
+                    }
+                }
+            }
+        }
+    }
+}

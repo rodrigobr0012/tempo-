@@ -2,6 +2,8 @@
 
 use leptos::prelude::*;
 
+use tempo_store::Appearance;
+
 use crate::browser::{self, Permission};
 use crate::state::{ctx, Confirm};
 use crate::ui::{clock_time, icon, Icon, TimeField};
@@ -78,6 +80,31 @@ pub fn SettingsPage() -> impl IntoView {
             </div>
 
             <div class="stack">
+                <h2 class="section">"Aparência"</h2>
+                <section class="card">
+                    <label class="field">
+                        <span class="field-label">"Tema"</span>
+                        <select on:change=move |ev| {
+                            let i: usize = event_target_value(&ev).parse().unwrap_or(0);
+                            let appearance = Appearance::ALL.get(i).copied().unwrap_or_default();
+                            c.act(|t| t.set_appearance(appearance));
+                        }>
+                            {Appearance::ALL
+                                .into_iter()
+                                .enumerate()
+                                .map(|(i, a)| view! {
+                                    <option
+                                        value=i.to_string()
+                                        selected=move || settings.with(|s| s.as_ref().is_some_and(|s| s.appearance == a))
+                                    >
+                                        {a.label()}
+                                    </option>
+                                })
+                                .collect_view()}
+                        </select>
+                    </label>
+                </section>
+
                 {if desktop {
                     view! { <DesktopSystem /> }.into_any()
                 } else {

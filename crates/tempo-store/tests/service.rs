@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use chrono::{NaiveDate, NaiveDateTime};
 use tempo_core::{Clock, ClockTime, CoreError, ManualClock, Permille};
-use tempo_store::{Error, NewReserved, NewTag, Tempo};
+use tempo_store::{Appearance, Error, NewReserved, NewTag, Tempo};
 
 const BRT: i64 = -3 * 3600;
 const H: i64 = 3600;
@@ -310,6 +310,26 @@ fn sobreposicao_com_timer_ativo() {
 }
 
 #[test]
+fn apagar_progresso_da_tag_hoje() {
+    let (mut app, clock) = setup(&[tag("Estudo", 100), tag("Leitura", 100)]);
+    let estudo = id_of(&app, "Estudo");
+    let leitura = id_of(&app, "Leitura");
+    app.start(leitura).unwrap();
+    clock.advance(20 * M);
+    app.start(estudo).unwrap();
+    clock.advance(10 * M);
+    app.pause().unwrap();
+    app.start(estudo).unwrap();
+    clock.advance(5 * M);
+    // Apaga a sessão encerrada e a que está rodando; a outra tag fica intacta.
+    assert_eq!(app.clear_tag_today(estudo).unwrap(), 2);
+    assert_eq!(consumed(&mut app, estudo), 0);
+    assert_eq!(consumed(&mut app, leitura), 20 * M);
+    assert!(app.active_timer().unwrap().is_none());
+    assert_eq!(app.clear_tag_today(estudo).unwrap(), 0);
+}
+
+#[test]
 fn apagar_sessao() {
     let (mut app, clock) = setup(&[tag("Estudo", 100)]);
     let id = id_of(&app, "Estudo");
@@ -431,6 +451,18 @@ fn retencao_apaga_dias_antigos() {
     app.set_retention(Some(5)).unwrap();
     assert_eq!(app.history(100).unwrap().len(), 6);
     assert_eq!(app.settings().unwrap().retention_days, Some(5));
+}
+
+#[test]
+fn aparencia_fica_salva_e_volta_ao_padrao_ao_apagar_tudo() {
+    let (mut app, _) = setup(&[tag("Estudo", 100)]);
+    assert_eq!(app.settings().unwrap().appearance, Appearance::System);
+    app.set_appearance(Appearance::Dark).unwrap();
+    assert_eq!(app.settings().unwrap().appearance, Appearance::Dark);
+    app.set_appearance(Appearance::Light).unwrap();
+    assert_eq!(app.settings().unwrap().appearance, Appearance::Light);
+    app.erase_all().unwrap();
+    assert_eq!(app.settings().unwrap().appearance, Appearance::System);
 }
 
 #[test]

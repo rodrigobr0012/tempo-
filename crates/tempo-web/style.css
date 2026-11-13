@@ -1,4 +1,5 @@
-/* Tempo — versão web. Mesmas cores do app Android (ui/theme.slint), tema claro/escuro do sistema. */
+/* Tempo — versão web. Mesmas cores do app Android (ui/theme.slint). Tema claro/escuro do sistema,
+   ou o escolhido nos Ajustes (`data-theme="light"` / `"dark"` no <html>). */
 
 :root {
   --bg: #f4f4f7;
@@ -21,7 +22,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #111113;
     --surface: #1c1c20;
     --surface-2: #2a2a30;
@@ -36,6 +37,26 @@
     --warn-bg: #3a2e12;
     --warn-text: #ffd27a;
   }
+}
+/* Mesmas cores do bloco acima, para o tema escuro escolhido nos Ajustes. */
+:root[data-theme="dark"] {
+  --bg: #111113;
+  --surface: #1c1c20;
+  --surface-2: #2a2a30;
+  --line: #32323a;
+  --text: #f2f2f5;
+  --text-2: #b0b0ba;
+  --accent: #8ab4ff;
+  --on-accent: #0b1530;
+  --accent-soft: #1e2b4a;
+  --danger: #ff8a80;
+  --success: #6ee7b7;
+  --warn-bg: #3a2e12;
+  --warn-text: #ffd27a;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 * {
@@ -607,6 +628,12 @@ select {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }
+.hero-time.ok {
+  color: var(--success);
+}
+.hero.stopwatch {
+  border-color: var(--success);
+}
 .hint {
   padding: 12px 0;
 }
@@ -979,9 +1006,154 @@ input[type="range"] {
   text-align: center;
 }
 
+/* Aba Agora: o copo que enche até a marca da meta */
+.now-card {
+  position: relative;
+  align-items: center;
+  border-radius: 24px;
+  padding: 20px;
+  width: min(100%, 560px);
+  align-self: center;
+}
+.now-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  align-self: stretch;
+}
+.now-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.now-tag:hover {
+  background: var(--surface-2);
+}
+.now-tag.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+/* A tag com o cronômetro ligado vira a torneira: um bico por baixo, de onde sai o jato. */
+.now-tag {
+  position: relative;
+}
+.now-tag::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 12px;
+  height: 6px;
+  margin-left: -6px;
+  border-radius: 0 0 5px 5px;
+  background: var(--accent);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.now-tag.active.running::after {
+  transform: scaleY(1);
+}
+.pour {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+.now-tag.running .dot {
+  animation: now-pulse 1.6s ease-in-out infinite;
+}
+@keyframes now-pulse {
+  50% {
+    transform: scale(1.5);
+  }
+}
+.glass {
+  /* Espaço entre a torneira (tags) e a boca do copo para o jato cair. */
+  margin-top: 28px;
+  width: min(100%, 440px);
+  height: auto;
+  overflow: visible;
+}
+.glass-back {
+  fill: var(--surface-2);
+  opacity: 0.55;
+}
+.glass-outline {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.glass-liquid {
+  transition: transform 1s linear;
+}
+.glass-wave {
+  opacity: 0.9;
+}
+/* Linha clara na superfície: deixa visível o nível subindo. */
+.glass-surface {
+  stroke: #fff;
+  stroke-width: 1.5;
+  opacity: 0.35;
+}
+.glass-mark {
+  stroke: var(--text);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  opacity: 0.55;
+}
+.glass-tick {
+  stroke: var(--text);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.glass.reached .glass-mark,
+.glass.reached .glass-tick {
+  stroke: var(--success);
+  opacity: 1;
+}
+.glass-mark-label {
+  fill: var(--text-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.glass-mark-value {
+  fill: var(--text);
+  font-size: 17px;
+  font-weight: 700;
+}
+.glass-mark-pct {
+  fill: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+.glass.reached .glass-mark-label {
+  fill: var(--success);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
+  }
+  .now-tag .dot {
+    animation: none !important;
   }
 }
 

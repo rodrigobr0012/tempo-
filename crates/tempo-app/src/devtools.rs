@@ -73,6 +73,10 @@ const STEPS: &[Step] = &[
         d.set_confirm_button("Apagar tudo".into());
         d.set_kind(4);
     }),
+    ("12-agora", |w| {
+        w.global::<Dlg>().set_kind(0);
+        w.global::<Api>().invoke_navigate(4);
+    }),
 ];
 
 /// Dados de demonstração: sessões encerradas e o timer de "Estudo" rodando.

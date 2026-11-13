@@ -4,12 +4,15 @@ use std::collections::BTreeSet;
 
 use chrono::{Datelike, Duration, NaiveDate};
 use slint::{Color, ModelRc, SharedString, VecModel};
-use tempo_core::format::{day_title, hm, hms, short, short_date, tag_status};
+use tempo_core::format::{day_title, goal_caption, hm, hms, short, short_date, tag_status};
 use tempo_core::stats::TagStats;
 use tempo_core::{Clock, Permille, Progress};
 use tempo_store::{DaySummary, SessionView, StatsView, TagToday, TodayView};
 
-use crate::{CalendarCell, DayInfo, HeroItem, HistoryDay, HistoryTag, ReservedItem, Segment, SessionItem, StatItem, TagItem, UsageTag};
+use crate::{
+    CalendarCell, DayInfo, HeroItem, HistoryDay, HistoryTag, ReservedItem, Segment, SessionItem, StatItem, TagItem,
+    UsageTag,
+};
 
 pub fn color(c: u32) -> Color {
     Color::from_rgb_u8((c >> 16) as u8, (c >> 8) as u8, c as u8)
@@ -43,6 +46,11 @@ pub fn tag_item(t: &TagToday) -> TagItem {
         running: t.running,
         finished: p.is_finished() && t.allocated > 0,
         excess: p.excess() > 0,
+        elapsed: hms(t.consumed).into(),
+        fill: p.fill(),
+        goal_caption: goal_caption(p).into(),
+        has_goal: t.allocated > 0,
+        started: t.consumed > 0,
     }
 }
 
@@ -219,8 +227,18 @@ pub fn date_from_key(k: i32) -> Option<NaiveDate> {
 
 pub fn month_title(d: NaiveDate) -> String {
     const MESES: [&str; 12] = [
-        "janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro",
-        "novembro", "dezembro",
+        "janeiro",
+        "fevereiro",
+        "março",
+        "abril",
+        "maio",
+        "junho",
+        "julho",
+        "agosto",
+        "setembro",
+        "outubro",
+        "novembro",
+        "dezembro",
     ];
     format!("{} de {}", MESES[(d.month() - 1) as usize], d.year())
 }

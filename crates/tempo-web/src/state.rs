@@ -77,6 +77,7 @@ pub fn persist() {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page {
     Today,
+    Now,
     Plan,
     History,
     Settings,
@@ -95,6 +96,8 @@ pub enum Confirm {
     Erase,
     DeleteTag(i64),
     DeleteReserved(i64),
+    /// Apaga o tempo registrado hoje para a tag (aba "Agora").
+    ClearTagToday(i64),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -104,6 +107,7 @@ pub enum Dialog {
         id: Option<i64>,
     },
     Manual,
+    StopwatchPick,
     Sessions,
     Reserved {
         id: Option<i64>,

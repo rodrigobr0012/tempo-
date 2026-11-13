@@ -140,10 +140,7 @@ fn main() {
         // Abrir de novo (atalho, início automático) só traz a janela existente para a frente.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec![MINIMIZED]),
-        ))
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![MINIMIZED])))
         .manage(Timer::default())
         .manage(Hints::default())
         .invoke_handler(tauri::generate_handler![load_db, save_db, backup_db, sync_timer])
@@ -161,8 +158,9 @@ fn main() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } =
-                        event
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left, button_state: MouseButtonState::Up, ..
+                    } = event
                     {
                         show_main(tray.app_handle());
                     }

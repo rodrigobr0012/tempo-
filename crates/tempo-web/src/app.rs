@@ -6,10 +6,11 @@ use leptos::ev;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use tempo_core::format::hms;
+use tempo_store::Appearance;
 
 use crate::browser;
 use crate::dialogs::Dialogs;
-use crate::pages::{HistoryPage, Onboarding, PlanPage, SettingsPage, TodayPage};
+use crate::pages::{HistoryPage, NowPage, Onboarding, PlanPage, SettingsPage, TodayPage};
 use crate::state::{self, ctx, Ctx, Page};
 use crate::ui::{icon, Icon};
 
@@ -90,6 +91,17 @@ fn Shell() -> impl IntoView {
     let c = ctx();
     let onboarded = Memo::new(move |_| c.read(|t| Ok(t.settings()?.onboarded)).unwrap_or(false));
 
+    // Tema escolhido nos Ajustes; sem escolha, o CSS segue o sistema.
+    Effect::new(move |_| {
+        let appearance = c.read(|t| Ok(t.settings()?.appearance)).unwrap_or_default();
+        if let Some(root) = document().document_element() {
+            let _ = match appearance {
+                Appearance::System => root.remove_attribute("data-theme"),
+                chosen => root.set_attribute("data-theme", chosen.as_str()),
+            };
+        }
+    });
+
     // Título da aba com o timer em andamento.
     Effect::new(move |_| {
         c.now.track();
@@ -128,6 +140,7 @@ fn Shell() -> impl IntoView {
                 <main class="content">
                     {move || match c.page.get() {
                         Page::Today => view! { <TodayPage /> }.into_any(),
+                        Page::Now => view! { <NowPage /> }.into_any(),
                         Page::Plan => view! { <PlanPage /> }.into_any(),
                         Page::History => view! { <HistoryPage /> }.into_any(),
                         Page::Settings => view! { <SettingsPage /> }.into_any(),
@@ -164,6 +177,7 @@ fn Nav() -> impl IntoView {
         <nav class="nav" aria-label="Seções">
             <div class="brand">"Tempo"</div>
             {item(Page::Today, icon::TODAY, "Hoje")}
+            {item(Page::Now, icon::GLASS, "Agora")}
             {item(Page::Plan, icon::TUNE, "Planejar")}
             {item(Page::History, icon::CHART, "Histórico")}
             {item(Page::Settings, icon::SETTINGS, "Ajustes")}

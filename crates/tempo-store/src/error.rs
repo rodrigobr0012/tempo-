@@ -32,6 +32,9 @@ pub enum Error {
 
     #[error("Há espaço para restaurar \"{0}\" apenas reduzindo outras tags.")]
     NoRoomToRestore(String),
+
+    #[error("Pare o cronômetro antes de iniciar o timer.")]
+    StopwatchRunning,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

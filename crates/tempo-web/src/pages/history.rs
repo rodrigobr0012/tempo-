@@ -384,7 +384,11 @@ fn PeriodResult(usage: Memo<Usage>) -> impl IntoView {
     let available = move || usage.with(|u| u.available);
     let used_ratio = move || {
         let a = available();
-        if a == 0 { 0.0 } else { used() as f64 / a as f64 }
+        if a == 0 {
+            0.0
+        } else {
+            used() as f64 / a as f64
+        }
     };
     let used_pct = move || (used_ratio() * 100.0).round() as i32;
 
@@ -537,4 +541,3 @@ fn grid_cells(month_start: NaiveDate) -> Vec<DayCell> {
         })
         .collect()
 }
-

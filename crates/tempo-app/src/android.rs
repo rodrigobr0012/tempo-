@@ -169,6 +169,19 @@ impl Platform for AndroidPlatform {
         self.call_void("requestExactAlarms");
     }
 
+    fn set_dark_bars(&self, dark: bool) {
+        self.with_env(|env, ctx| {
+            let class = bridge_class(env, ctx)?;
+            env.call_static_method(
+                &class,
+                "setDarkBars",
+                "(Landroid/app/Activity;Z)V",
+                &[JValue::Object(ctx), JValue::Bool(dark.into())],
+            )?;
+            Ok(())
+        });
+    }
+
     fn share_text(&self, title: &str, text: &str) -> Result<String, String> {
         self.with_env(|env, ctx| {
             let class = bridge_class(env, ctx)?;

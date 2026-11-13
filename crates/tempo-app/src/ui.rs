@@ -5,14 +5,14 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 use std::time::Duration;
 
-use chrono::{Datelike, Timelike, Duration as ChronoDuration, NaiveDate};
+use chrono::{Datelike, Duration as ChronoDuration, NaiveDate, Timelike};
 
 use slint::{ComponentHandle, Model, SharedString, Timer, TimerMode};
 use tempo_core::format::{hm, short};
 use tempo_core::reserved::{check_reserved, SECS_PER_DAY};
 use tempo_core::tags::SUGGESTED_TAGS;
 use tempo_core::{allocated_secs, available_secs, Clock, ClockTime, Permille};
-use tempo_store::{NewReserved, NewTag, Tempo};
+use tempo_store::{Appearance, NewReserved, NewTag, Tempo};
 
 use crate::platform::{timer_sync, Platform};
 use crate::present::{self, model};
@@ -135,10 +135,21 @@ impl Ctx {
         api.set_segments(model(present::segments(&view)));
         api.set_hero(present::hero(&view, &*clock));
         api.set_today_tags(model(view.tags.iter().map(present::tag_item).collect()));
+        // Aba Agora: mantém a atividade escolhida; sem escolha válida, segue o timer (ou a última usada).
+        let exists = |id: &i64| view.tags.iter().any(|t| t.tag.id == *id);
+        let now_tag = Some(i64::from(api.get_now_tag()))
+            .filter(exists)
+            .or(view.active.as_ref().map(|a| a.tag_id))
+            .or(view.focus_tag.filter(exists))
+            .or(view.tags.first().map(|t| t.tag.id));
+        api.set_now_tag(now_tag.map_or(-1, |id| id as i32));
+        api.set_now_index(view.tags.iter().position(|t| Some(t.tag.id) == now_tag).map_or(-1, |i| i as i32));
+        api.set_now(view.tags.iter().find(|t| Some(t.tag.id) == now_tag).map(present::tag_item).unwrap_or_default());
         api.set_tag_names(model(view.tags.iter().map(|t| SharedString::from(t.tag.name.as_str())).collect()));
         let local = clock.utc_to_local(view.now);
         let now_min = (local.hour() * 60 + local.minute()) as i32;
         api.set_manual_default_start((now_min - 30).rem_euclid(1440) / 5 * 5);
+        api.set_clock_now(local.format("%H:%M").to_string().into());
         if let Some(list) = sessions {
             api.set_sessions(model(list.iter().map(|s| present::session_item(s, &*clock, view.now)).collect()));
         }
@@ -203,6 +214,7 @@ impl Ctx {
         api.set_overtime(s.overtime);
         api.set_sound(s.sound);
         api.set_vibration(s.vibration);
+        api.set_appearance_index(Appearance::ALL.iter().position(|a| *a == s.appearance).unwrap_or(0) as i32);
         api.set_retention_index(RETENTION_OPTIONS.iter().position(|o| *o == s.retention_days).unwrap_or(0) as i32);
         self.refresh_permissions();
     }
@@ -416,6 +428,7 @@ pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
                 1 => c.refresh_plan(),
                 2 => c.refresh_history(api.get_history_tab()),
                 3 => c.refresh_settings(),
+                4 => c.refresh_today(),
                 _ => {}
             }
         });
@@ -448,6 +461,24 @@ pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
     }
 
     // ---------------------------------------------------------------- timer
+    api.on_pour(|fx, fy, surface, empty, head, tail, now| {
+        let f = crate::pour::frame(fx, fy, surface, empty, head, tail, now);
+        crate::PourFrame {
+            stream: f.stream.into(),
+            caps: f.caps.into(),
+            shine: f.shine.into(),
+            mound: f.mound.into(),
+            drops: f.drops.into(),
+        }
+    });
+    {
+        let c = ctx.clone();
+        api.on_select_now(move |id| {
+            let Some(ui) = c.ui() else { return };
+            ui.global::<Api>().set_now_tag(id);
+            c.refresh_today();
+        });
+    }
     {
         let c = ctx.clone();
         api.on_toggle_tag(move |id| {
@@ -601,6 +632,11 @@ pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
                         c.toast("Bloco excluído. O tempo volta a ficar disponível a partir do próximo dia.");
                     }
                 }
+            } else if let Some(id) = action.strip_prefix("clear-today:").and_then(|v| v.parse::<i64>().ok()) {
+                if c.run(|t| t.clear_tag_today(id)).is_some() {
+                    c.after_timer_action();
+                    c.toast("Progresso apagado.");
+                }
             } else if let Some(id) = action.strip_prefix("delete-tag:").and_then(|v| v.parse::<i64>().ok()) {
                 if c.run(|t| t.delete_tag(id)).is_some() {
                     c.sync_platform();
@@ -724,6 +760,19 @@ pub fn setup(ui: &AppWindow, platform: Rc<dyn Platform>) -> Handle {
                 c.refresh_settings();
             }
         });
+    }
+    {
+        let c = ctx.clone();
+        api.on_set_appearance(move |i| {
+            let appearance = Appearance::ALL.get(i.max(0) as usize).copied().unwrap_or_default();
+            if c.run(|t| t.set_appearance(appearance)).is_some() {
+                c.refresh_settings();
+            }
+        });
+    }
+    {
+        let c = ctx.clone();
+        api.on_dark_changed(move |dark| c.platform.set_dark_bars(dark));
     }
     {
         let c = ctx.clone();

@@ -19,6 +19,7 @@ pub fn Dialogs() -> impl IntoView {
         c.dialog.get().map(|d| match d {
             Dialog::TagEditor { id } => view! { <TagEditor id=id /> }.into_any(),
             Dialog::Manual => view! { <ManualDialog /> }.into_any(),
+            Dialog::StopwatchPick => view! { <StopwatchDialog /> }.into_any(),
             Dialog::Sessions => view! { <SessionsDialog /> }.into_any(),
             Dialog::Reserved { id } => view! { <ReservedDialog id=id /> }.into_any(),
             Dialog::Confirm { title, text, button, action } => {
@@ -298,6 +299,62 @@ fn ManualDialog() -> impl IntoView {
 }
 
 #[component]
+fn StopwatchDialog() -> impl IntoView {
+    let c = ctx();
+    let start = state::with(|t| t.stopwatch_start()).ok().flatten();
+    let tags: Vec<(i64, String, u32)> = state::with(|t| t.today())
+        .map(|v| v.tags.into_iter().map(|t| (t.tag.id, t.tag.name, t.tag.color)).collect())
+        .unwrap_or_default();
+    let now = chrono::Utc::now().timestamp();
+    let duration = short((now - start.unwrap_or(now)).max(0));
+    view! {
+        <Sheet title="Parar cronômetro">
+            <p class="muted">
+                {format!("Tempo acumulado: {}. Para qual tag ele vai?", duration)}
+            </p>
+            {tags.is_empty().then(|| view! {
+                <p class="muted">"Nenhuma tag planejada."</p>
+            })}
+            <div class="stack">
+                {tags
+                    .into_iter()
+                    .map(|(id, name, color)| view! {
+                        <button
+                            type="button"
+                            class="tag-row"
+                            on:click=move |_| {
+                                if c.act(|t| t.stop_stopwatch(id)).is_some() {
+                                    c.dialog.set(None);
+                                    c.say("Tempo lançado.");
+                                }
+                            }
+                        >
+                            <span class="stripe" style:background=css(color)></span>
+                            <span class="tag-body">
+                                <span class="row">
+                                    <span class="tag-name grow ellipsis">{name}</span>
+                                </span>
+                            </span>
+                        </button>
+                    })
+                    .collect_view()}
+            </div>
+            <div class="row gap">
+                <button type="button" class="btn danger grow" on:click=move |_| {
+                    if c.act(|t| t.cancel_stopwatch()).is_some() {
+                        c.dialog.set(None);
+                        c.say("Cronômetro descartado.");
+                    }
+                }>
+                    <Icon path=icon::DELETE />
+                    "Descartar sem lançar"
+                </button>
+            </div>
+        </Sheet>
+    }
+}
+
+#[component]
 fn SessionsDialog() -> impl IntoView {
     let c = ctx();
     let sessions = Memo::new(move |_| {
@@ -451,6 +508,11 @@ fn ConfirmDialog(title: String, text: String, button: String, action: Confirm) -
             Confirm::DeleteTag(id) => {
                 if c.act(|t| t.delete_tag(id)).is_some() {
                     c.say("Tag excluída.");
+                }
+            }
+            Confirm::ClearTagToday(id) => {
+                if c.act(|t| t.clear_tag_today(id)).is_some() {
+                    c.say("Progresso apagado.");
                 }
             }
             Confirm::DeleteReserved(id) => {

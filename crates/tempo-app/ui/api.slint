@@ -1,9 +1,10 @@
 // Ponte entre a interface e o Rust. Propriedades `in` são preenchidas pelo Rust;
 // callbacks são tratados em `src/ui.rs`.
-import { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryDay, StatItem, Suggestion, ReservedItem, CalendarCell, UsageTag } from "types.slint";
+import { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryDay, StatItem, Suggestion, ReservedItem, CalendarCell, UsageTag, PourFrame } from "types.slint";
 
 export global Api {
     // ---- geral
+    // 0 Hoje · 1 Planejar · 2 Histórico · 3 Ajustes · 4 Agora
     in-out property <int> page: 0;
     in-out property <string> toast;
     in property <bool> onboarded;
@@ -12,6 +13,8 @@ export global Api {
 
     // ---- Hoje
     in property <DayInfo> day;
+    /// Relógio local "HH:MM", atualizado a cada segundo.
+    in property <string> clock-now;
     in property <[Segment]> segments;
     in property <HeroItem> hero;
     in property <[TagItem]> today-tags;
@@ -27,6 +30,16 @@ export global Api {
     callback open-sessions();
     callback delete-session(int);
     callback add-manual(int, int, int) -> bool;
+
+    // ---- Agora (cronômetro no copo)
+    /// Atividade mostrada no copo (id da tag; -1 = nenhuma).
+    in property <int> now-tag: -1;
+    /// Posição dessa atividade na lista de tags (a tag vira a torneira do copo).
+    in property <int> now-index: -1;
+    in property <TagItem> now;
+    callback select-now(int);
+    /// Quadro do jato: bico (x, y), superfície, copo vazio, idades da frente e do fim, relógio.
+    pure callback pour(float, float, float, bool, float, float, float) -> PourFrame;
 
     // ---- Planejar
     in property <[TagItem]> plan-tags;
@@ -81,6 +94,8 @@ export global Api {
     in property <bool> sound;
     in property <bool> vibration;
     in property <int> retention-index;
+    /// Aparência: 0 automático (sistema) · 1 claro · 2 escuro.
+    in property <int> appearance-index;
     in property <bool> notif-granted;
     in property <bool> exact-granted;
     callback save-day-start(int);
@@ -88,6 +103,9 @@ export global Api {
     callback set-sound(bool);
     callback set-vibration(bool);
     callback set-retention(int);
+    callback set-appearance(int);
+    /// O tema em uso mudou (para o sistema ajustar os ícones das barras).
+    callback dark-changed(bool);
     callback request-notifications();
     callback request-exact-alarms();
     callback export-csv();

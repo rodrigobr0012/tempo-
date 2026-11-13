@@ -13,6 +13,14 @@ export struct TagItem {
     running: bool,
     finished: bool,
     excess: bool,
+    // ---- aba Agora (copo)
+    // Tempo cronometrado hoje, "HH:MM:SS".
+    elapsed: string,
+    // Nível do copo: 1,0 = marca da meta; passa dela até 1,25.
+    fill: float,
+    goal-caption: string,
+    has-goal: bool,
+    started: bool,
 }
 
 export struct HeroItem {
@@ -116,4 +124,13 @@ export struct UsageTag {
     duration: string,
     // Se `true`, renderiza como "Não usado" (cinza, texto discreto).
     muted: bool,
+}
+
+/// Um quadro do jato da aba "Agora": caminhos SVG nas unidades do desenho do copo.
+export struct PourFrame {
+    stream: string,
+    caps: string,
+    shine: string,
+    mound: string,
+    drops: string,
 }

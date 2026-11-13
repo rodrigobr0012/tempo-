@@ -1,8 +1,10 @@
 // Janela principal: navegação inferior, páginas, diálogos e avisos.
+import { Palette } from "std-widgets.slint";
 import { Theme, Icons } from "theme.slint";
 import { Api, Dlg } from "api.slint";
 import { Icon } from "widgets.slint";
 import { TodayPage } from "today.slint";
+import { NowPage } from "now.slint";
 import { PlanPage } from "plan.slint";
 import { HistoryPage } from "history.slint";
 import { SettingsPage } from "settings.slint";
@@ -10,7 +12,7 @@ import { Onboarding } from "onboarding.slint";
 import { TagEditorDialog, ManualDialog, SessionsDialog, ConfirmDialog, ReservedDialog } from "dialogs.slint";
 
 export { Api, Dlg }
-export { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryTag, HistoryDay, StatItem, Suggestion, ReservedItem } from "types.slint";
+export { TagItem, HeroItem, DayInfo, Segment, SessionItem, HistoryTag, HistoryDay, StatItem, Suggestion, ReservedItem, PourFrame } from "types.slint";
 
 component NavItem inherits Rectangle {
     in property <string> icon;
@@ -75,6 +77,20 @@ export component AppWindow inherits Window {
     }
     init => {
         keys.focus();
+        root.apply-appearance();
+    }
+
+    // Aparência escolhida nos Ajustes. `unknown` devolve a escolha ao sistema.
+    property <int> appearance: Api.appearance-index;
+    changed appearance => {
+        root.apply-appearance();
+    }
+    function apply-appearance() {
+        Palette.color-scheme = Api.appearance-index == 1 ? ColorScheme.light : Api.appearance-index == 2 ? ColorScheme.dark : ColorScheme.unknown;
+    }
+    property <bool> dark: Theme.dark;
+    changed dark => {
+        Api.dark-changed(Theme.dark);
     }
 
     keys := FocusScope {
@@ -114,6 +130,10 @@ export component AppWindow inherits Window {
                     width: parent.width;
                     height: parent.height;
                 }
+                if Api.page == 4: NowPage {
+                    width: parent.width;
+                    height: parent.height;
+                }
                 if Api.page == 1: PlanPage {
                     width: parent.width;
                     height: parent.height;
@@ -142,6 +162,11 @@ export component AppWindow inherits Window {
                         icon: Icons.today;
                         label: "Hoje";
                         index: 0;
+                    }
+                    NavItem {
+                        icon: Icons.glass;
+                        label: "Agora";
+                        index: 4;
                     }
                     NavItem {
                         icon: Icons.tune;

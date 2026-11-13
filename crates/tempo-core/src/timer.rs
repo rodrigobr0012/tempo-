@@ -37,6 +37,9 @@ pub fn consumed(spans: &[Span], now: i64) -> i64 {
     spans.iter().map(|s| s.duration(now)).sum()
 }
 
+/// Quanto o copo da aba "Agora" enche além da marca da meta (1,25 = 25% acima).
+pub const OVERFILL_MAX: f32 = 1.25;
+
 /// Situação de uma tag no dia.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Progress {
@@ -69,6 +72,23 @@ impl Progress {
             return if self.consumed > 0 { 1.0 } else { 0.0 };
         }
         (self.consumed as f64 / self.allocated as f64).min(1.0) as f32
+    }
+
+    /// Consumido ÷ alocado sem parar em 1: passa da marca da meta até `OVERFILL_MAX`.
+    /// É o nível do copo da aba "Agora" (1,0 = marca da meta).
+    pub fn fill(&self) -> f32 {
+        if self.allocated <= 0 {
+            return 0.0;
+        }
+        (self.consumed as f64 / self.allocated as f64).min(f64::from(OVERFILL_MAX)) as f32
+    }
+
+    /// Porcentagem inteira da meta já cumprida (pode passar de 100).
+    pub fn percent_of_goal(&self) -> i64 {
+        if self.allocated <= 0 {
+            return 0;
+        }
+        self.consumed * 100 / self.allocated
     }
 }
 
@@ -108,6 +128,12 @@ mod tests {
         assert_eq!(Progress::new(0, 0).ratio(), 0.0);
         assert_eq!(Progress::new(0, 10).ratio(), 1.0);
         assert!((Progress::new(1000, 250).ratio() - 0.25).abs() < 1e-6);
+        assert!((Progress::new(1000, 250).fill() - 0.25).abs() < 1e-6);
+        assert!((Progress::new(1000, 1100).fill() - 1.1).abs() < 1e-6);
+        assert_eq!(Progress::new(1000, 9000).fill(), OVERFILL_MAX);
+        assert_eq!(Progress::new(0, 10).fill(), 0.0);
+        assert_eq!(Progress::new(5_760, 2_880).percent_of_goal(), 50);
+        assert_eq!(Progress::new(600, 750).percent_of_goal(), 125);
     }
 
     #[test]

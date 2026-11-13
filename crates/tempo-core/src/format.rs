@@ -77,6 +77,19 @@ pub fn tag_status(p: Progress) -> String {
     }
 }
 
+/// Legenda do copo da aba "Agora": quanto da meta já foi cronometrado.
+pub fn goal_caption(p: Progress) -> String {
+    if p.allocated <= 0 {
+        "Sem meta para hoje".into()
+    } else if p.excess() > 0 {
+        format!("Meta de {} cumprida · +{} além da marca", short(p.allocated), short(p.excess()))
+    } else if p.is_finished() {
+        format!("Meta de {} cumprida", short(p.allocated))
+    } else {
+        format!("{}% da meta · faltam {}", p.percent_of_goal(), short(p.remaining()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,5 +122,13 @@ mod tests {
         assert_eq!(tag_status(Progress::new(5760, 600)), "Restam 1h26min");
         assert_eq!(tag_status(Progress::new(600, 600)), "Concluído");
         assert_eq!(tag_status(Progress::new(600, 1320)), "+12min de excedente");
+    }
+
+    #[test]
+    fn legenda_do_copo() {
+        assert_eq!(goal_caption(Progress::new(5760, 2880)), "50% da meta · faltam 48min");
+        assert_eq!(goal_caption(Progress::new(5760, 5760)), "Meta de 1h36min cumprida");
+        assert_eq!(goal_caption(Progress::new(600, 1320)), "Meta de 10min cumprida · +12min além da marca");
+        assert_eq!(goal_caption(Progress::new(0, 30)), "Sem meta para hoje");
     }
 }

@@ -182,8 +182,19 @@ export component TodayPage inherits Rectangle {
                 VerticalLayout {
                     horizontal-stretch: 1;
                     alignment: center;
-                    Title {
-                        text: "Hoje";
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Title {
+                            text: "Hoje";
+                            horizontal-stretch: 1;
+                        }
+                        Text {
+                            text: Api.clock-now;
+                            color: Theme.text;
+                            font-size: 22px;
+                            font-weight: 700;
+                            vertical-alignment: bottom;
+                        }
                     }
                     Muted {
                         text: Api.day.title;

@@ -77,6 +77,49 @@ export component SettingsPage inherits Rectangle {
                 }
             }
 
+            Section {
+                text: "APARÊNCIA";
+            }
+            Card {
+                Muted {
+                    text: "Tema";
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    for label[i] in ["Automático", "Claro", "Escuro"]: Rectangle {
+                        property <bool> chosen: Api.appearance-index == i;
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        preferred-width: 0px;
+                        height: 48px;
+                        border-radius: 24px;
+                        border-width: 1px;
+                        border-color: self.chosen ? Theme.accent : Theme.line;
+                        background: self.chosen ? Theme.accent-soft : pick.pressed ? Theme.surface-2 : Theme.surface;
+                        accessible-role: button;
+                        accessible-label: "Tema " + label;
+                        accessible-checkable: true;
+                        accessible-checked: self.chosen;
+                        Text {
+                            text: label;
+                            color: parent.chosen ? Theme.text : Theme.text-2;
+                            font-size: 14px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        pick := TouchArea {
+                            clicked => {
+                                Api.set-appearance(i);
+                            }
+                        }
+                    }
+                }
+                Muted {
+                    text: "Automático acompanha o tema claro ou escuro do aparelho.";
+                }
+            }
+
             if Api.is-android: Section {
                 text: "PERMISSÕES";
             }

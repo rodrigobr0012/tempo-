@@ -4,6 +4,41 @@ use chrono::NaiveDate;
 use tempo_core::reserved::DEFAULT_DAY_START;
 use tempo_core::{ClockTime, Permille, Progress};
 
+/// Aparência do app: seguir o sistema ou forçar o tema claro/escuro.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Appearance {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl Appearance {
+    /// Na ordem em que aparecem nos Ajustes.
+    pub const ALL: [Appearance; 3] = [Appearance::System, Appearance::Light, Appearance::Dark];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Appearance::System => "Automático (igual ao sistema)",
+            Appearance::Light => "Claro",
+            Appearance::Dark => "Escuro",
+        }
+    }
+
+    /// Valor guardado no banco (e usado no `data-theme` da versão web).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Appearance::System => "system",
+            Appearance::Light => "light",
+            Appearance::Dark => "dark",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|a| a.as_str() == s)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settings {
     /// RN25: horário em que o dia lógico começa (e termina).
@@ -15,6 +50,7 @@ pub struct Settings {
     /// RN30: `None` = manter para sempre.
     pub retention_days: Option<u32>,
     pub onboarded: bool,
+    pub appearance: Appearance,
 }
 
 impl Default for Settings {
@@ -26,6 +62,7 @@ impl Default for Settings {
             vibration: true,
             retention_days: None,
             onboarded: false,
+            appearance: Appearance::System,
         }
     }
 }

@@ -23,6 +23,9 @@ import android.os.Vibrator;
 import android.provider.Settings;
 import android.text.format.DateFormat;
 import android.util.Log;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowInsetsController;
 import android.widget.Toast;
 
 import java.io.File;
@@ -155,6 +158,29 @@ public final class Bridge {
         Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, a.getPackageName());
         a.runOnUiThread(() -> a.startActivity(i));
+    }
+
+    /** Tema escolhido nos Ajustes: cores e ícones das barras do sistema acompanham o app. */
+    public static void setDarkBars(Activity a, boolean dark) {
+        a.runOnUiThread(() -> {
+            Window w = a.getWindow();
+            int bg = dark ? 0xFF111113 : 0xFFF4F4F7;
+            w.setStatusBarColor(bg);
+            w.setNavigationBarColor(bg);
+            if (Build.VERSION.SDK_INT >= 30) {
+                WindowInsetsController c = w.getInsetsController();
+                if (c != null) {
+                    int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                            | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                    c.setSystemBarsAppearance(dark ? 0 : light, light);
+                }
+            } else {
+                View v = w.getDecorView();
+                int light = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                int flags = v.getSystemUiVisibility();
+                v.setSystemUiVisibility(dark ? flags & ~light : flags | light);
+            }
+        });
     }
 
     public static boolean exactAlarmsAllowed(Context ctx) {

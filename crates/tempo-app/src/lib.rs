@@ -3,6 +3,7 @@
 slint::include_modules!();
 
 pub mod platform;
+mod pour;
 mod present;
 pub mod state;
 mod ui;

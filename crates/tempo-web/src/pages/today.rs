@@ -48,7 +48,7 @@ fn hero_vm(v: &TodayView) -> Option<HeroVm> {
 }
 
 /// Inicia a tag ou pausa, se ela já está rodando.
-fn toggle_tag(c: Ctx, id: i64) {
+pub(super) fn toggle_tag(c: Ctx, id: i64) {
     browser::unlock_audio();
     let running = crate::state::with(|t| Ok(t.active_timer()?.is_some_and(|a| a.tag_id == id))).unwrap_or(false);
     if running {
@@ -76,6 +76,10 @@ pub fn TodayPage() -> impl IntoView {
         c.now.track();
         c.read(|t| t.today())
     });
+    let stopwatch_start = Memo::new(move |_| {
+        c.now.track();
+        c.read(|t| t.stopwatch_start()).flatten()
+    });
     let ids = Memo::new(move |_| {
         today.with(|v| v.as_ref().map(|v| v.tags.iter().map(|t| t.tag.id).collect::<Vec<_>>()).unwrap_or_default())
     });
@@ -83,17 +87,30 @@ pub fn TodayPage() -> impl IntoView {
     let hero = Memo::new(move |_| today.with(|v| v.as_ref().and_then(hero_vm)));
     let day = move |f: fn(&TodayView) -> String| move || today.with(|v| v.as_ref().map(f).unwrap_or_default());
     let flag = move |f: fn(&TodayView) -> bool| move || today.with(|v| v.as_ref().is_some_and(f));
+    let stopwatch_active = move || stopwatch_start.get().is_some();
 
     view! {
         <header class="page-head">
             <div class="grow">
                 <h1>"Hoje"</h1>
-                <p class="muted">{day(|v| tempo_core::format::day_title(v.date))}</p>
+                <p class="muted">
+                    {day(|v| tempo_core::format::day_title(v.date))}
+                    " · "
+                    <strong>{day(|v| local_clock(v.now))}</strong>
+                </p>
             </div>
             <IconButton
                 path=icon::LIST
                 label="Sessões de hoje".to_string()
                 on_click=move || c.dialog.set(Some(Dialog::Sessions))
+            />
+            <IconButton
+                path=icon::TIMER
+                label="Cronômetro livre".to_string()
+                disabled=Signal::derive(move || !has_tags.get() || stopwatch_active())
+                on_click=move || {
+                    c.act(|t| t.start_stopwatch());
+                }
             />
             <IconButton
                 path=icon::ADD
@@ -143,14 +160,21 @@ pub fn TodayPage() -> impl IntoView {
                 </Show>
 
                 <Show
-                    when=move || hero.with(Option::is_some)
+                    when=stopwatch_active
                     fallback=move || view! {
-                        <Show when=move || has_tags.get()>
-                            <p class="muted center hint">"Clique numa tag para iniciar o timer."</p>
+                        <Show
+                            when=move || hero.with(Option::is_some)
+                            fallback=move || view! {
+                                <Show when=move || has_tags.get()>
+                                    <p class="muted center hint">"Clique numa tag para iniciar o timer."</p>
+                                </Show>
+                            }
+                        >
+                            <Hero hero=hero />
                         </Show>
                     }
                 >
-                    <Hero hero=hero />
+                    <Stopwatch start=stopwatch_start />
                 </Show>
             </div>
 
@@ -247,6 +271,47 @@ fn Hero(hero: Memo<Option<HeroVm>>) -> impl IntoView {
                 }>
                     <Icon path=icon::STOP />
                     "Parar"
+                </button>
+            </div>
+        </section>
+    }
+}
+
+#[component]
+fn Stopwatch(start: Memo<Option<i64>>) -> impl IntoView {
+    let c = ctx();
+    let elapsed = move || {
+        let s = start.get().unwrap_or_else(|| c.now.get());
+        (c.now.get() - s).max(0)
+    };
+    view! {
+        <section class="card hero stopwatch running">
+            <div class="row">
+                <Icon path=icon::TIMER />
+                <h2 class="grow">"Cronômetro"</h2>
+                <span class="status ok">"Rodando"</span>
+            </div>
+            <div class="hero-time ok" role="timer" aria-live="off">{move || hms(elapsed())}</div>
+            <p class="muted center">"Escolha a tag ao parar. O tempo vira uma sessão manual."</p>
+            <div class="row center gap">
+                <button
+                    type="button"
+                    class="btn primary"
+                    on:click=move |_| c.dialog.set(Some(Dialog::StopwatchPick))
+                >
+                    <Icon path=icon::STOP />
+                    "Parar e escolher tag"
+                </button>
+                <button
+                    type="button"
+                    class="btn"
+                    on:click=move |_| {
+                        if c.act(|t| t.cancel_stopwatch()).is_some() {
+                            c.say("Cronômetro descartado.");
+                        }
+                    }
+                >
+                    "Descartar"
                 </button>
             </div>
         </section>

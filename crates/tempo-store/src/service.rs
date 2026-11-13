@@ -36,9 +36,11 @@ mod key {
     pub const VIBRATION: &str = "vibration";
     pub const RETENTION: &str = "retention_days";
     pub const ONBOARDED: &str = "onboarded";
+    pub const APPEARANCE: &str = "appearance";
     pub const FOCUS: &str = "focus_tag";
     pub const LAST_SEEN: &str = "last_seen";
     pub const CLOCK_WARNING: &str = "clock_warning";
+    pub const STOPWATCH_START: &str = "stopwatch_start";
 }
 
 pub struct Tempo {
@@ -207,6 +209,10 @@ impl Tempo {
 
     pub fn set_vibration(&mut self, on: bool) -> Result<()> {
         set_bool(&self.conn, key::VIBRATION, on)
+    }
+
+    pub fn set_appearance(&mut self, appearance: Appearance) -> Result<()> {
+        set_kv(&self.conn, key::APPEARANCE, appearance.as_str())
     }
 
     /// RN30: `None` mantém o histórico para sempre.
@@ -467,6 +473,9 @@ impl Tempo {
     /// Inicia (ou retoma) o timer de uma tag. Pausa o timer que estiver rodando (RN17).
     pub fn start(&mut self, tag_id: i64) -> Result<()> {
         self.tick()?;
+        if self.stopwatch_start()?.is_some() {
+            return Err(Error::StopwatchRunning);
+        }
         let s = self.settings()?;
         let now = self.now();
         let tx = self.conn.transaction()?;
@@ -515,6 +524,75 @@ impl Tempo {
         let changed = self.pause()?;
         del_kv(&self.conn, key::FOCUS)?;
         Ok(changed)
+    }
+
+    // ------------------------------------------------------------------ cronômetro livre
+    //
+    // Modo alternativo: o cronômetro roda sem tag e sem meta. Ao parar, o usuário escolhe
+    // a tag e o tempo vira uma sessão normal (manual). Exclusivo com o timer de tag.
+
+    /// Instante de início do cronômetro, se estiver rodando.
+    pub fn stopwatch_start(&self) -> Result<Option<i64>> {
+        Ok(get_kv(&self.conn, key::STOPWATCH_START)?.and_then(|v| v.parse().ok()))
+    }
+
+    /// Inicia o cronômetro. Pausa o timer de tag em andamento, se houver.
+    pub fn start_stopwatch(&mut self) -> Result<()> {
+        self.tick()?;
+        if self.stopwatch_start()?.is_some() {
+            return Ok(());
+        }
+        let now = self.now();
+        let tx = self.conn.transaction()?;
+        if let Some(a) = active_session(&tx)? {
+            close_session(&tx, a.id, now)?;
+        }
+        del_kv(&tx, key::FOCUS)?;
+        set_kv(&tx, key::STOPWATCH_START, &now.to_string())?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Descarta o cronômetro sem gravar nada.
+    pub fn cancel_stopwatch(&mut self) -> Result<()> {
+        del_kv(&self.conn, key::STOPWATCH_START)
+    }
+
+    /// Para o cronômetro e grava o tempo acumulado na tag escolhida como sessão manual.
+    /// Devolve a duração gravada em segundos (0 se o intervalo foi curto demais).
+    pub fn stop_stopwatch(&mut self, tag_id: i64) -> Result<i64> {
+        self.tick()?;
+        let Some(start) = self.stopwatch_start()? else {
+            return Ok(0);
+        };
+        let now = self.now();
+        let tx = self.conn.transaction()?;
+        let tag = get_tag(&tx, tag_id)?;
+        if tag.archived {
+            return Err(Error::TagNotFound);
+        }
+        let day = open_day(&tx)?.ok_or(Error::NotOnboarded)?;
+        let effective_start = start.max(day.start).min(now);
+        let duration = (now - effective_start).max(0);
+        del_kv(&tx, key::STOPWATCH_START)?;
+        if duration <= 0 {
+            tx.commit()?;
+            return Ok(0);
+        }
+        let new_span = tempo_core::Span::closed(effective_start, now);
+        for s in day_spans(&tx, day.id)? {
+            if new_span.overlaps(&s, now) {
+                tx.commit()?;
+                return Err(CoreError::ManualOverlap.into());
+            }
+        }
+        ensure_allocation_row(&tx, &day, &tag)?;
+        tx.execute(
+            "INSERT INTO sessions (day_id, tag_id, start_utc, end_utc, origin) VALUES (?1, ?2, ?3, ?4, 'manual')",
+            params![day.id, tag_id, effective_start, now],
+        )?;
+        tx.commit()?;
+        Ok(duration)
     }
 
     /// Timer em andamento, se houver.
@@ -575,6 +653,18 @@ impl Tempo {
         tx.execute("DELETE FROM sessions WHERE id = ?1", [id])?;
         tx.commit()?;
         Ok(())
+    }
+
+    /// Apaga todo o tempo registrado hoje para uma tag (aba "Agora": esvaziar o copo).
+    /// Encerra o timer dela, se estiver rodando. Devolve quantas sessões foram apagadas.
+    pub fn clear_tag_today(&mut self, tag_id: i64) -> Result<usize> {
+        self.tick()?;
+        let tx = self.conn.transaction()?;
+        get_tag(&tx, tag_id)?;
+        let day = open_day(&tx)?.ok_or(Error::NotOnboarded)?;
+        let n = tx.execute("DELETE FROM sessions WHERE day_id = ?1 AND tag_id = ?2", params![day.id, tag_id])?;
+        tx.commit()?;
+        Ok(n)
     }
 
     // ------------------------------------------------------------------ consultas
@@ -842,6 +932,7 @@ fn read_settings(conn: &Connection) -> Result<Settings> {
         vibration: get_bool(conn, key::VIBRATION, d.vibration)?,
         retention_days: retention,
         onboarded: get_bool(conn, key::ONBOARDED, false)?,
+        appearance: get_kv(conn, key::APPEARANCE)?.and_then(|v| Appearance::parse(&v)).unwrap_or(d.appearance),
     })
 }
 

@@ -43,6 +43,8 @@ pub trait Platform {
     fn request_notifications(&self);
     fn exact_alarms_allowed(&self) -> bool;
     fn request_exact_alarms(&self);
+    /// Tema em uso mudou: ajusta as barras do sistema (ícones claros sobre fundo escuro e vice-versa).
+    fn set_dark_bars(&self, dark: bool);
     /// Compartilha um texto (ex.: CSV). Retorna a mensagem a exibir ao usuário.
     fn share_text(&self, title: &str, text: &str) -> Result<String, String>;
 }
@@ -79,6 +81,8 @@ impl Platform for DesktopPlatform {
     }
 
     fn request_exact_alarms(&self) {}
+
+    fn set_dark_bars(&self, _dark: bool) {}
 
     fn share_text(&self, _title: &str, text: &str) -> Result<String, String> {
         let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
